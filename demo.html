@@ -1,0 +1,2344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NovelWorkshop · 网文写作工作台</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #f5f0e8;
+  --bg-secondary: #f0ebe3;
+  --bg-tertiary: #ebe5db;
+  --border: #d8d0c4;
+  --border-dark: #c4bab0;
+  --text: #111111;
+  --text-secondary: #555555;
+  --text-muted: #8a8070;
+  --green: #22c55e;
+  --yellow: #eab308;
+  --red: #ef4444;
+  --font-serif: '仿宋', 'FangSong', '楷体', 'KaiTi', 'STKaiti', serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-serif);
+  font-size: 15px;
+  line-height: 1.7;
+  font-weight: 400;
+  overflow: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.35;
+  background-image: 
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 1px,
+      rgba(180,170,155,0.03) 1px,
+      rgba(180,170,155,0.03) 2px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 1px,
+      rgba(180,170,155,0.02) 1px,
+      rgba(180,170,155,0.02) 2px
+    );
+}
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #c8bfb2; border-radius: 2px; }
+
+/* ===== Layout ===== */
+.app { display: flex; height: 100vh; }
+
+/* ===== Sidebar ===== */
+.sidebar {
+  width: 180px;
+  min-width: 180px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.25s ease;
+  z-index: 100;
+}
+
+.sidebar-header {
+  padding: 32px 20px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--text);
+  font-family: var(--font-serif);
+}
+
+.nav { flex: 1; padding: 16px 10px; }
+
+.nav-item {
+  padding: 10px 12px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  transition: all 0.15s ease;
+  border-radius: 1px;
+  margin-bottom: 1px;
+}
+
+.nav-item:hover {
+  color: var(--text);
+  background: var(--bg-tertiary);
+}
+
+.nav-item.active {
+  color: #ffffff;
+  background: #111111;
+  font-weight: 600;
+}
+
+.sidebar-footer {
+  padding: 18px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.book-selector {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+.book-name {
+  display: block;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  font-family: var(--font-serif);
+}
+
+/* ===== Main ===== */
+.main { flex: 1; overflow-y: auto; }
+
+.page { display: none; padding: 40px 48px; min-height: 100vh; animation: fadeIn 0.2s ease; }
+.page.active { display: block; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== Typography ===== */
+.page-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  font-family: var(--font-serif);
+  letter-spacing: 3px;
+}
+
+.page-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 40px;
+  letter-spacing: 0.5px;
+  font-weight: 400;
+}
+
+.section-title {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+
+/* ===== Stat Cards ===== */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 40px;
+}
+
+.stat-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 1px;
+  padding: 24px 20px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  font-family: var(--font-serif);
+  letter-spacing: 1px;
+  color: var(--text);
+}
+
+.stat-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  font-family: var(--font-mono);
+}
+
+/* ===== Book Cards ===== */
+.book-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 40px;
+}
+
+.book-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 1px;
+  padding: 28px 24px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.book-card:hover { background: var(--bg-secondary); }
+
+.book-card-title {
+  font-size: 18px;
+  margin-bottom: 6px;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.book-card-genre {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.book-card-stats {
+  display: flex;
+  gap: 24px;
+}
+
+.book-card-stat {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+.book-card-stat span { color: var(--text); }
+
+.dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.dot-green { background: var(--green); }
+.dot-yellow { background: var(--yellow); }
+.dot-red { background: var(--red); }
+
+/* ===== Timeline ===== */
+.timeline { margin-top: 8px; }
+
+.timeline-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+
+.timeline-date {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  min-width: 48px;
+}
+
+.timeline-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  margin-top: 7px;
+  flex-shrink: 0;
+}
+
+.timeline-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* ===== WorldBuilding ===== */
+.wb-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 40px;
+}
+
+.collapse-panel { margin-bottom: 0; }
+
+.collapse-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 0;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-secondary);
+  transition: color 0.15s ease;
+  border-bottom: 1px solid var(--border);
+  letter-spacing: 0.5px;
+}
+
+.collapse-header:hover { color: var(--text); }
+.collapse-header.open { color: var(--text); }
+
+.collapse-arrow {
+  font-size: 10px;
+  transition: transform 0.2s ease;
+  color: var(--text-muted);
+}
+
+.collapse-header.open .collapse-arrow { transform: rotate(90deg); }
+
+.collapse-body {
+  display: none;
+  padding: 16px 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 2;
+}
+
+.collapse-body.open { display: block; }
+
+.graph-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 1px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.graph-title {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  letter-spacing: 0.5px;
+}
+
+/* ===== Horizontal Timeline ===== */
+.h-timeline {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  padding: 32px 0 8px;
+  position: relative;
+  border-top: 1px solid var(--border);
+}
+
+.h-tl-item {
+  flex: 0 0 auto;
+  text-align: center;
+  padding: 0 24px;
+  position: relative;
+}
+
+.h-tl-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #333;
+  margin: -28px auto 12px;
+  position: relative;
+  z-index: 1;
+}
+
+.h-tl-year {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.h-tl-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  max-width: 100px;
+  line-height: 1.4;
+}
+
+/* ===== Characters ===== */
+.char-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 40px;
+}
+
+.char-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 1px;
+  padding: 28px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.char-card:hover { background: var(--bg-secondary); }
+
+.char-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  font-family: var(--font-serif);
+}
+
+.char-name {
+  font-size: 16px;
+  margin-bottom: 4px;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.char-role {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.char-tag {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 1px;
+  padding: 2px 8px;
+  margin-top: 12px;
+}
+
+/* ===== Character Detail Drawer ===== */
+.drawer-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.15);
+  z-index: 200;
+}
+
+.drawer-overlay.open { display: block; }
+
+.detail-drawer {
+  position: fixed;
+  top: 0;
+  right: -480px;
+  width: 480px;
+  height: 100vh;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  z-index: 201;
+  overflow-y: auto;
+  padding: 40px 32px;
+  transition: right 0.3s ease;
+}
+
+.detail-drawer.open { right: 0; }
+
+.drawer-close {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 14px;
+  background: none;
+  border: none;
+  font-family: var(--font-serif);
+  letter-spacing: 1px;
+}
+
+.drawer-close:hover { color: var(--text); }
+
+.detail-name {
+  font-size: 22px;
+  margin-bottom: 4px;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.detail-role {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 28px;
+  letter-spacing: 0.5px;
+}
+
+.detail-section { margin-bottom: 22px; }
+
+.detail-section-title {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.detail-section-text {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 2;
+  font-family: var(--font-serif);
+}
+
+/* ===== Outline ===== */
+.outline-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 24px;
+  margin-bottom: 40px;
+}
+
+.tree { padding: 8px 0; }
+
+.tree-volume { margin-bottom: 8px; }
+
+.tree-volume-title {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 8px 0;
+  cursor: pointer;
+  transition: color 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.5px;
+}
+
+.tree-volume-title:hover { color: var(--text); }
+
+.tree-chapter {
+  padding: 7px 0 7px 24px;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease;
+  border-left: 1px solid var(--border);
+  margin-left: 6px;
+}
+
+.tree-chapter:hover { color: var(--text-secondary); }
+
+.tree-chapter.active {
+  color: var(--text);
+  border-left-color: var(--text);
+}
+
+.beat-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.beat-table th {
+  text-align: left;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+
+.beat-table td {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 12px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.beat-type {
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 1px;
+  color: var(--text-muted);
+  font-family: var(--font-serif);
+}
+
+/* ===== Foreshadowing Kanban ===== */
+.kanban {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.kanban-col {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 1px;
+  padding: 18px 16px;
+}
+
+.kanban-title {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: 0.5px;
+}
+
+.kanban-item {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 2px solid #ccc;
+  border-radius: 1px;
+  padding: 12px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: background 0.15s ease;
+  cursor: pointer;
+}
+
+.kanban-item:hover { background: var(--bg-secondary); }
+
+.kanban-item.ks-green { border-left-color: var(--green); }
+.kanban-item.ks-yellow { border-left-color: var(--yellow); }
+.kanban-item.ks-red { border-left-color: var(--red); }
+
+.kanban-item-title {
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 6px;
+  font-family: var(--font-serif);
+}
+
+.kanban-item-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ===== Writing ===== */
+.writing-layout {
+  display: grid;
+  grid-template-columns: 200px 1fr 260px;
+  gap: 0;
+  height: calc(100vh - 64px);
+  margin: -40px -48px;
+  border-top: 1px solid var(--border);
+}
+
+.writing-chapters {
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 20px 0;
+}
+
+.writing-chapters-title {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 8px 20px;
+  letter-spacing: 1.5px;
+}
+
+.writing-ch-item {
+  padding: 10px 20px;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border-left: 1px solid transparent;
+}
+
+.writing-ch-item:hover { color: var(--text-secondary); }
+
+.writing-ch-item.active {
+  color: var(--text);
+  border-left-color: var(--text);
+}
+
+.writing-editor {
+  padding: 40px 56px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.editor-header {
+  margin-bottom: 32px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.editor-chapter-title {
+  font-size: 20px;
+  font-family: var(--font-serif);
+  margin-bottom: 6px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.editor-chapter-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+.editor-body {
+  flex: 1;
+  font-size: 16px;
+  line-height: 2.0;
+  color: var(--text-secondary);
+  font-family: var(--font-serif);
+  max-width: 640px;
+}
+
+.editor-body p {
+  text-indent: 2em;
+  margin-bottom: 20px;
+}
+
+.writing-status {
+  border-left: 1px solid var(--border);
+  padding: 24px 20px;
+  overflow-y: auto;
+  background: var(--bg-secondary);
+}
+
+.status-section { margin-bottom: 32px; }
+
+.status-section-title {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+  letter-spacing: 1.5px;
+}
+
+/* Radar chart */
+.radar-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+/* Token bar */
+.token-bar { margin-bottom: 8px; }
+
+.token-bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  font-family: var(--font-mono);
+}
+
+.token-bar-track {
+  height: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.token-bar-fill {
+  height: 100%;
+  background: #333;
+  transition: width 0.3s ease;
+}
+
+/* Workflow steps */
+.workflow-steps { display: flex; flex-direction: column; gap: 0; }
+
+.wf-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  position: relative;
+}
+
+.wf-step::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 26px;
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+}
+
+.wf-step:last-child::before { display: none; }
+
+.wf-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid var(--border-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 7px;
+  flex-shrink: 0;
+}
+
+.wf-step.done .wf-dot {
+  background: #111;
+  border-color: #111;
+  color: #fff;
+}
+
+.wf-step.done { color: var(--text-secondary); }
+.wf-step.active { color: var(--text); }
+.wf-step.active .wf-dot { border-color: #111; }
+
+/* ===== Buttons ===== */
+.action-bar {
+  position: fixed;
+  bottom: 0;
+  left: 180px;
+  right: 0;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  padding: 14px 48px;
+  display: flex;
+  gap: 10px;
+  z-index: 50;
+}
+
+.btn {
+  padding: 11px 28px;
+  font-size: 14px;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  letter-spacing: 0.5px;
+}
+
+.btn-outline {
+  background: var(--bg);
+  color: #111;
+  border: 2px solid #222;
+}
+
+.btn-outline:hover {
+  background: var(--bg-tertiary);
+  border-color: #000;
+}
+
+.btn-primary {
+  background: #111;
+  color: #fff;
+  border: 2px solid #111;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+.btn-primary:hover {
+  background: #333;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.22);
+}
+
+/* ===== Mobile ===== */
+.hamburger {
+  display: none;
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 150;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 8px 12px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.2);
+  z-index: 110;
+}
+
+.sidebar-overlay.open { display: block; }
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .hamburger { display: block; }
+
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0;
+    height: 100vh;
+    transform: translateX(-180px);
+    z-index: 120;
+  }
+
+  .sidebar.open { transform: translateX(0); }
+
+  .page { padding: 24px 16px; }
+
+  .stat-row { grid-template-columns: repeat(2, 1fr); }
+  .book-grid { grid-template-columns: 1fr; }
+  .char-grid { grid-template-columns: repeat(2, 1fr); }
+  .wb-layout { grid-template-columns: 1fr; }
+  .outline-layout { grid-template-columns: 1fr; }
+  .kanban { grid-template-columns: repeat(2, 1fr); }
+
+  .writing-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+    margin: 0;
+    height: auto;
+    min-height: calc(100vh - 64px);
+  }
+
+  .writing-chapters { border-right: none; border-bottom: 1px solid var(--border); }
+  .writing-status { border-left: none; border-top: 1px solid var(--border); }
+
+  .action-bar { left: 0; padding: 12px 16px; }
+
+  .detail-drawer { width: 100%; right: -100%; }
+}
+
+/* ===== Chat Panel ===== */
+.chat-toggle-btn {
+  position: fixed;
+  bottom: 72px;
+  right: 24px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #111;
+  color: #fff;
+  border: 2px solid #333;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--font-serif);
+  cursor: pointer;
+  z-index: 300;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 1px;
+}
+.chat-toggle-btn:hover {
+  background: #333;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.25);
+  transform: scale(1.05);
+}
+.chat-toggle-btn.minimized {
+  width: 52px;
+  height: 52px;
+}
+
+.chat-panel {
+  position: fixed;
+  bottom: 132px;
+  right: 24px;
+  width: 400px;
+  height: 520px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.15);
+  z-index: 310;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: var(--font-serif);
+}
+.chat-panel.open { display: flex; }
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  cursor: move;
+  user-select: none;
+}
+.chat-header-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text);
+}
+.chat-header-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  letter-spacing: 0.5px;
+}
+.chat-header-actions {
+  display: flex;
+  gap: 8px;
+}
+.chat-header-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 16px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 2px;
+  transition: all 0.15s;
+  font-family: var(--font-mono);
+}
+.chat-header-btn:hover { color: var(--text); background: var(--bg-tertiary); }
+
+.chat-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chat-msg {
+  max-width: 85%;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.8;
+  border-radius: 2px;
+  font-family: var(--font-serif);
+}
+.chat-msg.user {
+  align-self: flex-end;
+  background: #111;
+  color: #fff;
+  border: none;
+}
+.chat-msg.ai {
+  align-self: flex-start;
+  background: var(--bg-secondary);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.chat-msg.typing {
+  align-self: flex-start;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  font-style: italic;
+}
+
+.chat-quick-actions {
+  display: flex;
+  gap: 6px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+  background: var(--bg-secondary);
+}
+.chat-quick-btn {
+  padding: 4px 12px;
+  font-size: 11px;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  background: var(--bg);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 1px;
+  cursor: pointer;
+  transition: all 0.15s;
+  letter-spacing: 0.3px;
+}
+.chat-quick-btn:hover {
+  background: #111;
+  color: #fff;
+  border-color: #111;
+}
+
+.chat-input-area {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  align-items: flex-end;
+}
+.chat-input {
+  flex: 1;
+  resize: none;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: var(--font-serif);
+  line-height: 1.6;
+  background: var(--bg);
+  color: var(--text);
+  max-height: 80px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.chat-input:focus { border-color: #999; }
+.chat-input::placeholder { color: var(--text-muted); }
+
+.chat-send-btn {
+  padding: 8px 18px;
+  background: #111;
+  color: #fff;
+  border: 2px solid #111;
+  border-radius: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-serif);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.chat-send-btn:hover { background: #333; }
+
+/* ===== Toast ===== */
+.toast-container {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  background: #111;
+  color: #fff;
+  padding: 10px 24px;
+  border-radius: 2px;
+  font-size: 13px;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  animation: toastIn 0.3s ease, toastOut 0.3s ease 1.7s forwards;
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes toastOut {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-12px); }
+}
+
+/* ===== Inline Edit ===== */
+.editable-wrap { position: relative; }
+.editable-wrap .edit-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 1px;
+  padding: 2px 8px;
+  font-size: 10px;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.editable-wrap:hover .edit-btn { opacity: 1; }
+.editable-wrap .edit-btn:hover { background: #111; color: #fff; border-color: #111; }
+
+.edit-textarea {
+  width: 100%;
+  min-height: 80px;
+  border: 1px solid var(--border-dark);
+  border-radius: 1px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: var(--font-serif);
+  line-height: 2;
+  color: var(--text);
+  background: var(--bg);
+  resize: vertical;
+  outline: none;
+}
+.edit-textarea:focus { border-color: #999; }
+
+.edit-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  justify-content: flex-end;
+}
+.edit-actions button {
+  padding: 4px 14px;
+  font-size: 11px;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  border-radius: 1px;
+  cursor: pointer;
+}
+.edit-save {
+  background: #111;
+  color: #fff;
+  border: 1px solid #111;
+}
+.edit-cancel {
+  background: var(--bg);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+</style>
+</head>
+<body>
+
+<button class="hamburger" onclick="toggleSidebar()">MENU</button>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+<div class="app">
+  <!-- ===== Sidebar ===== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">NovelWorkshop</div>
+    </div>
+
+    <nav class="nav">
+      <div class="nav-item active" data-page="dashboard">总览</div>
+      <div class="nav-item" data-page="worldbuilding">世界观</div>
+      <div class="nav-item" data-page="characters">角色</div>
+      <div class="nav-item" data-page="outline">大纲</div>
+      <div class="nav-item" data-page="writing">写作</div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="book-selector">
+        当前书籍
+        <span class="book-name">《星辰大陆》</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <main class="main">
+
+    <!-- ===== 总览 ===== -->
+    <div class="page active" id="page-dashboard">
+      <h1 class="page-title">总览</h1>
+      <p class="page-subtitle">项目进度与最近活动</p>
+
+      <div class="stat-row">
+        <div class="stat-card">
+          <div class="stat-label">总字数</div>
+          <div class="stat-value">156,800</div>
+          <div class="stat-sub">+2,400 本周</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">章节</div>
+          <div class="stat-value">8</div>
+          <div class="stat-sub">6 / 8 已完成</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">活跃伏笔</div>
+          <div class="stat-value">5</div>
+          <div class="stat-sub">已回收 2</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">完成章节</div>
+          <div class="stat-value">6</div>
+          <div class="stat-sub">审核通过率 87%</div>
+        </div>
+      </div>
+
+      <div class="section-title">我的书籍</div>
+      <div class="book-grid">
+        <div class="book-card">
+          <div class="book-card-title">星辰大陆</div>
+          <div class="book-card-genre">
+            <span class="dot dot-green"></span>
+            玄幻 · 连载中
+          </div>
+          <div class="book-card-stats">
+            <div class="book-card-stat"><span>156,800</span> 字</div>
+            <div class="book-card-stat"><span>8</span> 章</div>
+            <div class="book-card-stat"><span>4</span> 角色</div>
+          </div>
+        </div>
+        <div class="book-card">
+          <div class="book-card-title">量子深渊</div>
+          <div class="book-card-genre">
+            <span class="dot" style="background:#60a5fa"></span>
+            科幻 · 连载中
+          </div>
+          <div class="book-card-stats">
+            <div class="book-card-stat"><span>89,200</span> 字</div>
+            <div class="book-card-stat"><span>5</span> 章</div>
+            <div class="book-card-stat"><span>3</span> 角色</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-title">最近活动</div>
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-date">06-18</div>
+          <div class="timeline-dot dot-green"></div>
+          <div class="timeline-text">第三章「星纹觉醒」审核通过，评分 92</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-date">06-17</div>
+          <div class="timeline-dot dot-yellow"></div>
+          <div class="timeline-text">伏笔「银铃预知」已激活，关联第五章大纲</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-date">06-16</div>
+          <div class="timeline-dot" style="background:#60a5fa"></div>
+          <div class="timeline-text">新增角色设定：赵无极 · 对手阵营</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-date">06-15</div>
+          <div class="timeline-dot dot-green"></div>
+          <div class="timeline-text">第二卷大纲节拍表完成</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 世界观 ===== -->
+    <div class="page" id="page-worldbuilding">
+      <h1 class="page-title">世界观</h1>
+      <p class="page-subtitle">《星辰大陆》 · 设定体系</p>
+
+      <div class="wb-layout">
+        <div>
+          <div class="collapse-panel">
+            <div class="collapse-header open" onclick="toggleCollapse(this)">
+              <span>地理</span>
+              <span class="collapse-arrow">▸</span>
+            </div>
+            <div class="collapse-body open">
+              星辰大陆东西横跨三千里，中央为苍茫荒原，北方是永冻冰原「霜落之地」，南方为瘴气密林「万蛊泽」。大陆东端矗立着星落山脉，传说远古星辰坠落之处，蕴含无尽灵脉。西境为无尽沙海，散落着上古遗迹。
+            </div>
+          </div>
+          <div class="collapse-panel">
+            <div class="collapse-header" onclick="toggleCollapse(this)">
+              <span>势力</span>
+              <span class="collapse-arrow">▸</span>
+            </div>
+            <div class="collapse-body">
+              四大势力：凌霄宗（正道之首，据星落山脉）、幽冥阁（暗修势力，盘踞北境）、万宝楼（中立商会，掌控贸易命脉）、赵家（隐世家族，拥有上古秘法传承）。四方势力表面维持平衡，暗中角逐星纹秘宝。
+            </div>
+          </div>
+          <div class="collapse-panel">
+            <div class="collapse-header" onclick="toggleCollapse(this)">
+              <span>力量体系</span>
+              <span class="collapse-arrow">▸</span>
+            </div>
+            <div class="collapse-body">
+              修炼境界共分九重：感气 → 凝元 → 灵台 → 玄变 → 天象 → 归虚 → 碎星 → 破界 → 永恒。每突破一重需渡天劫。特殊体质者天生携带「星纹」，可沟通星辰之力，修炼速度远超常人。传说中集齐七道星纹者可开启远古神域。
+            </div>
+          </div>
+          <div class="collapse-panel">
+            <div class="collapse-header" onclick="toggleCollapse(this)">
+              <span>历史</span>
+              <span class="collapse-arrow">▸</span>
+            </div>
+            <div class="collapse-body">
+              远古诸神之战将大陆撕裂，诸神陨落后星纹散落人间。万年之后，文明重建，四大宗门各据一方。三千年前「星陨纪」事件中，一颗巨大星辰坠落于东境，形成星落山脉，从此灵气复苏，修炼文明再度繁荣。
+            </div>
+          </div>
+          <div class="collapse-panel">
+            <div class="collapse-header" onclick="toggleCollapse(this)">
+              <span>文化与社会</span>
+              <span class="collapse-arrow">▸</span>
+            </div>
+            <div class="collapse-body">
+              修炼文明主导社会结构，宗门兼管世俗。每年举办星辰大比选拔天才弟子，散修需依附宗门获取资源。世俗城镇以物易物与灵石并行，凡人与修士分界而居，但边荒地带两者混居。
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="graph-card" style="margin-bottom:16px">
+            <div class="graph-title">势力关系图</div>
+            <svg viewBox="0 0 500 300" style="width:100%">
+              <!-- 凌霄宗 -->
+              <circle cx="250" cy="60" r="36" fill="#f5f0e8" stroke="#111" stroke-width="1.2"/>
+              <text x="250" y="57" text-anchor="middle" fill="#111" font-size="12" font-family="'仿宋',serif">凌霄宗</text>
+              <text x="250" y="72" text-anchor="middle" fill="#999" font-size="9" font-family="'仿宋',serif">正道之首</text>
+
+              <!-- 幽冥阁 -->
+              <circle cx="80" cy="180" r="34" fill="#f5f0e8" stroke="#111" stroke-width="1.2"/>
+              <text x="80" y="177" text-anchor="middle" fill="#111" font-size="12" font-family="'仿宋',serif">幽冥阁</text>
+              <text x="80" y="192" text-anchor="middle" fill="#999" font-size="9" font-family="'仿宋',serif">暗修势力</text>
+
+              <!-- 万宝楼 -->
+              <circle cx="420" cy="180" r="34" fill="#f5f0e8" stroke="#111" stroke-width="1.2"/>
+              <text x="420" y="177" text-anchor="middle" fill="#111" font-size="12" font-family="'仿宋',serif">万宝楼</text>
+              <text x="420" y="192" text-anchor="middle" fill="#999" font-size="9" font-family="'仿宋',serif">中立商会</text>
+
+              <!-- 赵家 -->
+              <circle cx="250" cy="250" r="32" fill="#f5f0e8" stroke="#111" stroke-width="1.2"/>
+              <text x="250" y="247" text-anchor="middle" fill="#111" font-size="12" font-family="'仿宋',serif">赵家</text>
+              <text x="250" y="262" text-anchor="middle" fill="#999" font-size="9" font-family="'仿宋',serif">隐世家族</text>
+
+              <!-- Edges -->
+              <line x1="220" y1="88" x2="105" y2="155" stroke="#111" stroke-width="0.8" stroke-dasharray="4,3"/>
+              <line x1="280" y1="88" x2="395" y2="155" stroke="#111" stroke-width="0.8"/>
+              <line x1="250" y1="218" x2="250" y2="96" stroke="#111" stroke-width="0.8" stroke-dasharray="2,3"/>
+              <line x1="114" y1="180" x2="218" y2="250" stroke="#111" stroke-width="0.8" stroke-dasharray="3,3"/>
+              <line x1="386" y1="180" x2="282" y2="250" stroke="#111" stroke-width="0.8"/>
+
+              <!-- Edge labels -->
+              <text x="148" y="115" fill="#999" font-size="9" font-family="'仿宋',serif">敌对</text>
+              <text x="340" y="115" fill="#999" font-size="9" font-family="'仿宋',serif">贸易</text>
+              <text x="258" y="160" fill="#999" font-size="9" font-family="'仿宋',serif">暗中角力</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-title">历史年表</div>
+      <div class="h-timeline">
+        <div class="h-tl-item">
+          <div class="h-tl-dot"></div>
+          <div class="h-tl-year">远古</div>
+          <div class="h-tl-label">诸神之战</div>
+        </div>
+        <div class="h-tl-item">
+          <div class="h-tl-dot"></div>
+          <div class="h-tl-year">万年前</div>
+          <div class="h-tl-label">文明重建</div>
+        </div>
+        <div class="h-tl-item">
+          <div class="h-tl-dot"></div>
+          <div class="h-tl-year">三千年前</div>
+          <div class="h-tl-label">星陨纪</div>
+        </div>
+        <div class="h-tl-item">
+          <div class="h-tl-dot"></div>
+          <div class="h-tl-year">千年前</div>
+          <div class="h-tl-label">四宗并立</div>
+        </div>
+        <div class="h-tl-item">
+          <div class="h-tl-dot"></div>
+          <div class="h-tl-year">百年前</div>
+          <div class="h-tl-label">赵家隐世</div>
+        </div>
+        <div class="h-tl-item">
+          <div class="h-tl-dot"></div>
+          <div class="h-tl-year">当前</div>
+          <div class="h-tl-label">星纹觉醒</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 角色 ===== -->
+    <div class="page" id="page-characters">
+      <h1 class="page-title">角色</h1>
+      <p class="page-subtitle">《星辰大陆》 · 主要角色</p>
+
+      <div class="char-grid">
+        <div class="char-card" onclick="openCharDetail(0)">
+          <div class="char-avatar">林</div>
+          <div class="char-name">林昊</div>
+          <div class="char-role">主角 · 星纹觉醒者</div>
+          <div class="char-tag">星纹</div>
+        </div>
+        <div class="char-card" onclick="openCharDetail(1)">
+          <div class="char-avatar">苏</div>
+          <div class="char-name">苏瑶</div>
+          <div class="char-role">女主 · 预知天赋</div>
+          <div class="char-tag">预知</div>
+        </div>
+        <div class="char-card" onclick="openCharDetail(2)">
+          <div class="char-avatar">赵</div>
+          <div class="char-name">赵无极</div>
+          <div class="char-role">对手 · 赵家传人</div>
+          <div class="char-tag">秘法</div>
+        </div>
+        <div class="char-card" onclick="openCharDetail(3)">
+          <div class="char-avatar">林</div>
+          <div class="char-name">林老</div>
+          <div class="char-role">亲情线 · 隐世高手</div>
+          <div class="char-tag">守护</div>
+        </div>
+      </div>
+
+      <div class="section-title">角色关系图谱</div>
+      <div class="graph-card" style="max-height:340px">
+        <svg viewBox="0 0 600 300" style="width:100%">
+          <!-- Center: 林昊 -->
+          <circle cx="300" cy="150" r="32" fill="#f5f0e8" stroke="#111" stroke-width="1.2"/>
+          <text x="300" y="146" text-anchor="middle" fill="#111" font-size="13" font-family="'仿宋',serif">林昊</text>
+          <text x="300" y="163" text-anchor="middle" fill="#999" font-size="9">主角</text>
+
+          <!-- 苏瑶 -->
+          <circle cx="120" cy="80" r="28" fill="#f5f0e8" stroke="#111" stroke-width="1"/>
+          <text x="120" y="76" text-anchor="middle" fill="#111" font-size="12" font-family="'仿宋',serif">苏瑶</text>
+          <text x="120" y="92" text-anchor="middle" fill="#999" font-size="9">女主</text>
+
+          <!-- 赵无极 -->
+          <circle cx="480" cy="80" r="28" fill="#f5f0e8" stroke="#111" stroke-width="1"/>
+          <text x="480" y="76" text-anchor="middle" fill="#111" font-size="12" font-family="'仿宋',serif">赵无极</text>
+          <text x="480" y="92" text-anchor="middle" fill="#999" font-size="9">对手</text>
+
+          <!-- 林老 -->
+          <circle cx="120" cy="230" r="28" fill="#f5f0e8" stroke="#111" stroke-width="1"/>
+          <text x="120" y="226" text-anchor="middle" fill="#111" font-size="12" font-family="'仿宋',serif">林老</text>
+          <text x="120" y="242" text-anchor="middle" fill="#999" font-size="9">师父</text>
+
+          <!-- Edges -->
+          <line x1="145" y1="95" x2="270" y2="135" stroke="#111" stroke-width="0.8"/>
+          <text x="195" y="105" fill="#999" font-size="9" font-family="'仿宋',serif">情感羁绊</text>
+
+          <line x1="455" y1="95" x2="330" y2="135" stroke="#111" stroke-width="0.8" stroke-dasharray="4,3"/>
+          <text x="395" y="105" fill="#999" font-size="9" font-family="'仿宋',serif">宿命对抗</text>
+
+          <line x1="145" y1="215" x2="270" y2="165" stroke="#111" stroke-width="0.8"/>
+          <text x="195" y="200" fill="#999" font-size="9" font-family="'仿宋',serif">师徒传承</text>
+
+          <!-- 赵无极 - 赵家 -->
+          <line x1="480" y1="108" x2="480" y2="220" stroke="#999" stroke-width="0.8" stroke-dasharray="2,3"/>
+          <rect x="448" y="218" width="64" height="26" fill="#f5f0e8" stroke="#999" stroke-width="0.8" rx="1"/>
+          <text x="480" y="235" text-anchor="middle" fill="#999" font-size="10" font-family="'仿宋',serif">赵家</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ===== Character Detail Drawer ===== -->
+    <div class="drawer-overlay" id="drawerOverlay" onclick="closeCharDetail()"></div>
+    <div class="detail-drawer" id="charDetailDrawer">
+      <button class="drawer-close" onclick="closeCharDetail()">关闭</button>
+      <div id="charDetailContent"></div>
+    </div>
+
+    <!-- ===== 大纲 ===== -->
+    <div class="page" id="page-outline">
+      <h1 class="page-title">大纲</h1>
+      <p class="page-subtitle">《星辰大陆》 · 章节结构</p>
+
+      <div class="outline-layout">
+        <div class="tree">
+          <div class="tree-volume">
+            <div class="tree-volume-title" onclick="toggleVolume(this)">
+              <span class="collapse-arrow" style="display:inline-block;transform:rotate(90deg)">▸</span>
+              第一卷 · 星纹觉醒
+            </div>
+            <div class="tree-chapter active" onclick="selectChapter(this, 0)">- 第一章 边荒少年</div>
+            <div class="tree-chapter" onclick="selectChapter(this, 1)">- 第二章 灵脉异变</div>
+            <div class="tree-chapter" onclick="selectChapter(this, 2)">- 第三章 星纹觉醒</div>
+            <div class="tree-chapter" onclick="selectChapter(this, 3)">- 第四章 宗门风云</div>
+          </div>
+          <div class="tree-volume">
+            <div class="tree-volume-title" onclick="toggleVolume(this)">
+              <span class="collapse-arrow" style="display:inline-block;transform:rotate(90deg)">▸</span>
+              第二卷 · 暗潮涌动
+            </div>
+            <div class="tree-chapter" onclick="selectChapter(this, 4)">- 第五章 幽冥来袭</div>
+            <div class="tree-chapter" onclick="selectChapter(this, 5)">- 第六章 银铃之秘</div>
+            <div class="tree-chapter" onclick="selectChapter(this, 6)">- 第七章 赵家秘法</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-title" id="beatTitle">第一章 · 节拍表</div>
+          <table class="beat-table" id="beatTable">
+            <thead>
+              <tr>
+                <th style="width:50px">序号</th>
+                <th style="width:70px">类型</th>
+                <th>内容</th>
+                <th style="width:70px">字数</th>
+              </tr>
+            </thead>
+            <tbody id="beatBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="section-title">伏笔看板</div>
+      <div class="kanban">
+        <div class="kanban-col">
+          <div class="kanban-title">已埋设</div>
+          <div class="kanban-item">
+            <div class="kanban-item-title">星纹胎记之谜</div>
+            <div class="kanban-item-meta">第1章埋设 · 待激活</div>
+          </div>
+          <div class="kanban-item">
+            <div class="kanban-item-title">林老的身份</div>
+            <div class="kanban-item-meta">第2章埋设 · 待激活</div>
+          </div>
+        </div>
+        <div class="kanban-col">
+          <div class="kanban-title">已激活</div>
+          <div class="kanban-item ks-yellow">
+            <div class="kanban-item-title">银铃预知</div>
+            <div class="kanban-item-meta">第3章激活 · 关联第5章</div>
+          </div>
+          <div class="kanban-item ks-yellow">
+            <div class="kanban-item-title">远古诸神遗迹</div>
+            <div class="kanban-item-meta">第4章激活 · 关联第7章</div>
+          </div>
+        </div>
+        <div class="kanban-col">
+          <div class="kanban-title">推进中</div>
+          <div class="kanban-item ks-green">
+            <div class="kanban-item-title">赵家秘法</div>
+            <div class="kanban-item-meta">进度 60% · 第5-7章</div>
+          </div>
+          <div class="kanban-item ks-green">
+            <div class="kanban-item-title">量子维度信号</div>
+            <div class="kanban-item-meta">进度 30% · 跨书联动</div>
+          </div>
+        </div>
+        <div class="kanban-col">
+          <div class="kanban-title">已回收</div>
+          <div class="kanban-item ks-red">
+            <div class="kanban-item-title">灵脉异变真相</div>
+            <div class="kanban-item-meta">第1-3章 · 完整回收</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 写作 ===== -->
+    <div class="page" id="page-writing" style="padding:0">
+      <div class="writing-layout">
+        <!-- Left: chapter list -->
+        <div class="writing-chapters">
+          <div class="writing-chapters-title">章节目录</div>
+          <div class="writing-ch-item active">第一章 边荒少年</div>
+          <div class="writing-ch-item">第二章 灵脉异变</div>
+          <div class="writing-ch-item">第三章 星纹觉醒</div>
+          <div class="writing-ch-item">第四章 宗门风云</div>
+          <div class="writing-ch-item">第五章 幽冥来袭</div>
+          <div class="writing-ch-item">第六章 银铃之秘</div>
+          <div class="writing-ch-item">第七章 赵家秘法</div>
+          <div class="writing-ch-item">第八章 星辰大比</div>
+        </div>
+
+        <!-- Center: editor -->
+        <div class="writing-editor">
+          <div class="editor-header">
+            <div class="editor-chapter-title">第一章 · 边荒少年</div>
+            <div class="editor-chapter-sub">已定稿 · 18,200字 · 2024-06-10 最后修改</div>
+          </div>
+          <div class="editor-body">
+            <p>苍茫的暮色笼罩着边荒小镇，远处星落山脉的轮廓在夕阳下化作一道黑色的剪影。林昊坐在破旧的屋檐下，手中把玩着一枚铜色的铃铛——那是母亲留给他的唯一遗物。</p>
+            <p>铃铛表面刻着细密的纹路，在暮光中隐隐泛着幽蓝色的微光。他已经习惯了这种微光，从小时候的恐惧到如今的习以为常，十五年的光阴足够让一个少年学会与未知共处。</p>
+            <p>"又在看那个破铃铛了。"隔壁的铁匠铺传来王大叔粗犷的声音，"明天星辰大比的外门选拔就开始了，你准备得怎么样？"</p>
+            <p>林昊收起铃铛，嘴角浮起一丝淡淡的笑意。准备？他连感气境都未曾踏入，体内没有一丝灵力的波动。在这个以修炼实力论英雄的世界里，他不过是一个微不足道的凡人少年。</p>
+            <p>然而他不知道的是，在他体内沉睡了十五年的星纹，正在这暮色渐浓的黄昏中，悄然苏醒。胸口处传来一阵灼热，那个从出生起就存在的胎记，第一次泛出了银白色的光芒——</p>
+          </div>
+        </div>
+
+        <!-- Right: status panel -->
+        <div class="writing-status">
+          <div class="status-section">
+            <div class="status-section-title">审核评分</div>
+            <div class="radar-wrap">
+              <svg viewBox="0 0 200 200" width="180" height="180">
+                <!-- Pentagon grid -->
+                <polygon points="100,20 176,76 147,164 53,164 24,76" fill="none" stroke="#c8bfb2" stroke-width="0.6"/>
+                <polygon points="100,44 156,86 134,152 66,152 44,86" fill="none" stroke="#d8d0c4" stroke-width="0.5"/>
+                <polygon points="100,68 136,96 121,140 79,140 64,96" fill="none" stroke="#d8d0c4" stroke-width="0.5"/>
+                <polygon points="100,92 116,106 108,128 92,128 84,106" fill="none" stroke="#d8d0c4" stroke-width="0.5"/>
+                <!-- Axis lines -->
+                <line x1="100" y1="100" x2="100" y2="20" stroke="#d8d0c4" stroke-width="0.5"/>
+                <line x1="100" y1="100" x2="176" y2="76" stroke="#d8d0c4" stroke-width="0.5"/>
+                <line x1="100" y1="100" x2="147" y2="164" stroke="#d8d0c4" stroke-width="0.5"/>
+                <line x1="100" y1="100" x2="53" y2="164" stroke="#d8d0c4" stroke-width="0.5"/>
+                <line x1="100" y1="100" x2="24" y2="76" stroke="#d8d0c4" stroke-width="0.5"/>
+                <!-- Data polygon -->
+                <polygon points="100,30 162,82 138,155 60,148 34,80" fill="rgba(0,0,0,0.05)" stroke="#222" stroke-width="1.2"/>
+                <!-- Data points -->
+                <circle cx="100" cy="30" r="2.8" fill="#111"/>
+                <circle cx="162" cy="82" r="2.8" fill="#111"/>
+                <circle cx="138" cy="155" r="2.8" fill="#111"/>
+                <circle cx="60" cy="148" r="2.8" fill="#111"/>
+                <circle cx="34" cy="80" r="2.8" fill="#111"/>
+                <!-- Labels -->
+                <text x="100" y="12" text-anchor="middle" fill="#8a8070" font-size="9" font-weight="600" font-family="'仿宋',serif">情节</text>
+                <text x="186" y="76" text-anchor="start" fill="#8a8070" font-size="9" font-weight="600" font-family="'仿宋',serif">节奏</text>
+                <text x="154" y="174" text-anchor="start" fill="#8a8070" font-size="9" font-weight="600" font-family="'仿宋',serif">人物</text>
+                <text x="42" y="174" text-anchor="end" fill="#8a8070" font-size="9" font-weight="600" font-family="'仿宋',serif">文笔</text>
+                <text x="14" y="76" text-anchor="end" fill="#8a8070" font-size="9" font-weight="600" font-family="'仿宋',serif">设定</text>
+              </svg>
+            </div>
+          </div>
+
+          <div class="status-section">
+            <div class="status-section-title">Token 预算</div>
+            <div class="token-bar">
+              <div class="token-bar-label">
+                <span>已使用</span>
+                <span>12,480 / 20,000</span>
+              </div>
+              <div class="token-bar-track">
+                <div class="token-bar-fill" style="width:62%"></div>
+              </div>
+            </div>
+            <div class="token-bar" style="margin-top:14px">
+              <div class="token-bar-label">
+                <span>上下文窗口</span>
+                <span>8,200 / 16,000</span>
+              </div>
+              <div class="token-bar-track">
+                <div class="token-bar-fill" style="width:51%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="status-section">
+            <div class="status-section-title">工作流进度</div>
+            <div class="workflow-steps">
+              <div class="wf-step done">
+                <div class="wf-dot">✓</div>
+                <span>节拍表生成</span>
+              </div>
+              <div class="wf-step done">
+                <div class="wf-dot">✓</div>
+                <span>初稿生成</span>
+              </div>
+              <div class="wf-step done">
+                <div class="wf-dot">✓</div>
+                <span>自动审核</span>
+              </div>
+              <div class="wf-step active">
+                <div class="wf-dot"></div>
+                <span>润色优化</span>
+              </div>
+              <div class="wf-step">
+                <div class="wf-dot"></div>
+                <span>定稿确认</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-bar">
+        <button class="btn btn-primary">生成初稿</button>
+        <button class="btn btn-outline">审核</button>
+        <button class="btn btn-outline">润色</button>
+        <button class="btn btn-outline">定稿</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ===== Navigation =====
+const navItems = document.querySelectorAll('.nav-item');
+const pages = document.querySelectorAll('.page');
+
+navItems.forEach(item => {
+  item.addEventListener('click', () => {
+    navItems.forEach(n => n.classList.remove('active'));
+    item.classList.add('active');
+    const target = item.dataset.page;
+    pages.forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + target).classList.add('active');
+    // Close mobile sidebar
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('open');
+  });
+});
+
+// ===== Mobile sidebar =====
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('open');
+}
+
+// ===== Collapse panels =====
+function toggleCollapse(header) {
+  const body = header.nextElementSibling;
+  header.classList.toggle('open');
+  body.classList.toggle('open');
+}
+
+// ===== Volume toggle =====
+function toggleVolume(el) {
+  const arrow = el.querySelector('.collapse-arrow');
+  const chapters = el.parentElement.querySelectorAll('.tree-chapter');
+  const isOpen = arrow.style.transform === 'rotate(90deg)';
+  arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+  chapters.forEach(ch => {
+    ch.style.display = isOpen ? 'none' : 'block';
+  });
+}
+
+// ===== Chapter select =====
+function selectChapter(el, index) {
+  document.querySelectorAll('.tree-chapter').forEach(ch => ch.classList.remove('active'));
+  el.classList.add('active');
+  renderBeatTable(index);
+}
+
+// ===== Beat data =====
+const beatData = [
+  {
+    title: '第一章 · 节拍表',
+    beats: [
+      { id: 1, type: '引入', content: '暮色边荒小镇，林昊独坐屋檐，手中铜铃泛着微光', words: 1200 },
+      { id: 2, type: '铺垫', content: '王大叔催促明日星辰大比选拔，暗示林昊无灵力', words: 800 },
+      { id: 3, type: '伏笔', content: '铜铃纹路特写，母亲遗物暗示身世之谜', words: 600 },
+      { id: 4, type: '转折', content: '胸口星纹胎记灼热，十五年来首次发光', words: 1500 },
+      { id: 5, type: '悬念', content: '银白光芒冲天而起，远方凌霄宗方向有人感应到异动', words: 900 }
+    ]
+  },
+  {
+    title: '第二章 · 节拍表',
+    beats: [
+      { id: 1, type: '承接', content: '星纹觉醒后身体异变，林昊发现可感知灵气流动', words: 1400 },
+      { id: 2, type: '铺垫', content: '林老深夜来访，欲言又止，留下修炼口诀', words: 1000 },
+      { id: 3, type: '冲突', content: '镇上恶少挑衅，林昊首次使用灵力反击', words: 1600 },
+      { id: 4, type: '转折', content: '灵脉异变——地下古灵脉被星纹唤醒', words: 1200 },
+      { id: 5, type: '悬念', content: '凌霄宗探子出现，开始追查星纹觉醒者', words: 800 }
+    ]
+  },
+  {
+    title: '第三章 · 节拍表',
+    beats: [
+      { id: 1, type: '引入', content: '林昊随林老上山，初遇苏瑶', words: 1200 },
+      { id: 2, type: '铺垫', content: '苏瑶佩戴的银铃与林昊铜铃产生共鸣', words: 1000 },
+      { id: 3, type: '冲突', content: '外门考核，林昊以感气境实力击败凝元境弟子', words: 2000 },
+      { id: 4, type: '转折', content: '星纹觉醒完整展示，引发宗门高层震动', words: 1400 },
+      { id: 5, type: '伏笔', content: '宗主密谈：远古预言中的「七星之子」', words: 600 }
+    ]
+  },
+  {
+    title: '第四章 · 节拍表',
+    beats: [
+      { id: 1, type: '承接', content: '林昊正式入凌霄宗内门，分配洞府', words: 800 },
+      { id: 2, type: '铺垫', content: '初探藏经阁，发现与星纹相关的残卷', words: 1200 },
+      { id: 3, type: '冲突', content: '宗门内部派系争斗，有人暗中试探林昊', words: 1600 },
+      { id: 4, type: '转折', content: '残卷揭示远古诸神遗迹入口线索', words: 1400 },
+      { id: 5, type: '悬念', content: '幽冥阁暗探传回消息：星纹已觉醒', words: 600 }
+    ]
+  },
+  {
+    title: '第五章 · 节拍表',
+    beats: [
+      { id: 1, type: '引入', content: '幽冥阁精锐潜入凌霄宗外围，制造混乱', words: 1400 },
+      { id: 2, type: '冲突', content: '林昊与赵无极首次正面交锋', words: 2000 },
+      { id: 3, type: '转折', content: '苏瑶银铃发动预知，看到灾难画面', words: 1200 },
+      { id: 4, type: '高潮', content: '幽冥阁祭出上古暗器，林昊星纹暴走', words: 1800 },
+      { id: 5, type: '悬念', content: '战后废墟中发现赵家标记——赵家与幽冥阁有秘密往来', words: 800 }
+    ]
+  },
+  {
+    title: '第六章 · 节拍表',
+    beats: [
+      { id: 1, type: '承接', content: '苏瑶向林昊坦白预知能力与银铃来历', words: 1000 },
+      { id: 2, type: '铺垫', content: '银铃实为远古「预知神器」碎片，共七片', words: 1400 },
+      { id: 3, type: '冲突', content: '林昊追查赵家线索，遭赵无极警告', words: 1600 },
+      { id: 4, type: '转折', content: '林老身份线索：疑似远古诸神后裔', words: 1200 },
+      { id: 5, type: '悬念', content: '量子维度信号首次出现——跨维度波动', words: 600 }
+    ]
+  },
+  {
+    title: '第七章 · 节拍表',
+    beats: [
+      { id: 1, type: '引入', content: '赵家密境开启，赵无极展示赵家秘法', words: 1600 },
+      { id: 2, type: '冲突', content: '林昊闯入赵家密境，发现诸神遗迹入口', words: 2000 },
+      { id: 3, type: '高潮', content: '林昊与赵无极在遗迹中决战，赵家秘法 vs 星纹之力', words: 2400 },
+      { id: 4, type: '转折', content: '遗迹深处发现远古信息：诸神非死，而是封印', words: 1000 },
+      { id: 5, type: '悬念', content: '封印松动，更大的危机即将到来', words: 800 }
+    ]
+  }
+];
+
+function renderBeatTable(index) {
+  const data = beatData[index] || beatData[0];
+  document.getElementById('beatTitle').textContent = data.title;
+  const tbody = document.getElementById('beatBody');
+  tbody.innerHTML = data.beats.map(b => `
+    <tr>
+      <td style="font-family:var(--font-mono);color:var(--text-muted)">${b.id}</td>
+      <td><span class="beat-type">${b.type}</span></td>
+      <td>${b.content}</td>
+      <td style="font-family:var(--font-mono);color:var(--text-muted)">${b.words.toLocaleString()}</td>
+    </tr>
+  `).join('');
+}
+
+renderBeatTable(0);
+
+// ===== Character Detail (Drawer) =====
+const charDetails = [
+  {
+    name: '林昊',
+    role: '主角 · 星纹觉醒者',
+    portrait: '十五岁少年，身形清瘦但目光坚毅。胸口有一枚银色星纹胎记，觉醒后泛出幽蓝光芒。衣着朴素，常佩一枚铜色铃铛。',
+    personality: '沉默寡言但内心执拗，面对困境不轻言放弃。对弱者有本能的保护欲，但不会冲动行事。有一种与年龄不符的沉稳。',
+    background: '边荒小镇孤儿，自幼由林老抚养。母亲在他出生后不久失踪，留下铜铃和一句话：「等你准备好了，它会告诉你一切。」',
+    arc: '从无名少年到星纹觉醒者，从自我怀疑到接受命运，最终发现星纹背后隐藏着远古诸神的秘密，不得不面对更大的世界。'
+  },
+  {
+    name: '苏瑶',
+    role: '女主 · 预知天赋',
+    portrait: '十六岁，容貌清丽，气质淡然。常着素色衣裙，腕间系着一枚银色铃铛，行走时发出细微清脆的声响。',
+    personality: '温柔而独立，有着超越年龄的洞察力。因为预知能力，时常陷入对未来的焦虑中，但从不让旁人看到自己的脆弱。',
+    background: '凌霄宗内门弟子，出身修仙世家。银铃为家族传承之物，实为远古「预知神器」七碎片之一。',
+    arc: '从辅助角色逐渐成长为独立力量线，预知能力的觉醒让她成为故事关键转折点，最终与林昊形成互补的命运羁绊。'
+  },
+  {
+    name: '赵无极',
+    role: '对手 · 赵家传人',
+    portrait: '十七岁，身材高大，面容俊朗却透着冷厉。常着黑色劲装，眼神锐利。修炼赵家秘法，出手果决狠辣。',
+    personality: '骄傲自负，信奉实力至上。并非纯粹的恶人，有自己的信念和底线，但与林昊的理念根本对立。',
+    background: '赵家嫡传弟子，自幼接受严格训练。赵家隐世百年，秘法传承不为外人所知。他肩负着复兴赵家的使命。',
+    arc: '从单纯的对手逐渐展现复杂面，其与林昊的对抗不仅是个人恩怨，更是两个阵营、两种信念的碰撞。'
+  },
+  {
+    name: '林老',
+    role: '亲情线 · 隐世高手',
+    portrait: '年约六旬，须发皆白，面容慈祥。日常以镇上老中医身份示人，但偶尔流露出的气息令人心悸。',
+    personality: '温和从容，对林昊如亲孙。但在关键时刻会展现出与外表不符的果决与力量。极少提及自己的过去。',
+    background: '真实身份为远古诸神后裔，百年前隐居边荒。守护林昊的同时，也在等待某个时机——星纹完全觉醒之日。',
+    arc: '从慈爱长辈的形象逐步揭示其深沉的一面，他的秘密与远古诸神封印直接相关，是整个故事暗线的关键。'
+  }
+];
+
+function openCharDetail(index) {
+  const c = charDetails[index];
+  const html = `
+    <div class="detail-name">${c.name}</div>
+    <div class="detail-role">${c.role}</div>
+    <div class="detail-section">
+      <div class="detail-section-title">人物肖像</div>
+      <div class="detail-section-text">${c.portrait}</div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">性格特征</div>
+      <div class="detail-section-text">${c.personality}</div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">背景故事</div>
+      <div class="detail-section-text">${c.background}</div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">成长弧线</div>
+      <div class="detail-section-text">${c.arc}</div>
+    </div>
+  `;
+  document.getElementById('charDetailContent').innerHTML = html;
+  document.getElementById('charDetailDrawer').classList.add('open');
+  document.getElementById('drawerOverlay').classList.add('open');
+}
+
+function closeCharDetail() {
+  document.getElementById('charDetailDrawer').classList.remove('open');
+  document.getElementById('drawerOverlay').classList.remove('open');
+}
+
+// ===== Writing chapter list =====
+document.querySelectorAll('.writing-ch-item').forEach(item => {
+  item.addEventListener('click', function() {
+    document.querySelectorAll('.writing-ch-item').forEach(i => i.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+
+// ===== Toast System =====
+function showToast(message) {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 2100);
+}
+
+// ===== Chat Panel System =====
+const chatAgents = {
+  dashboard: { name: '主控Agent', sub: '全局协调 · 任务调度', messages: [
+    { role: 'user', text: '帮我检查一下《星陨录》当前的写作进度' },
+    { role: 'ai', text: '当前进度汇报：\n• 世界观设定已完成 85%（地理/力量体系/势力架构已定稿，历史年表待补充）\n• 角色档案已完成 4/6 人（林昊、苏瑶、赵无极、林老已完善）\n• 大纲完成第一卷 7 章节拍表，伏笔线索 8 条\n• 已完成第 1-3 章初稿，共 12,800 字\n\n建议优先推进：1) 补充第 4-5 章节拍表；2) 世界观历史年表收尾；3) 启动第 4 章初稿生成。' },
+    { role: 'user', text: '先把第4章节拍表排出来' },
+    { role: 'ai', text: '好的，已调度「情节架构师」开始排布第 4 章节拍表。预计 30 秒内完成，结果将自动同步到大纲页面。' }
+  ]},
+  worldbuilding: { name: '世界构建师', sub: '世界观设定 · 体系构建', messages: [
+    { role: 'user', text: '把落星镇的地理环境改得更险峻一些，四面环山，只有一个隐蔽的入口' },
+    { role: 'ai', text: '已更新地理设定。落星镇现为四面环山的封闭地形，仅有一条隐蔽的「星陨峡」作为唯一入口。这会影响以下设定：\n1) 镇民对外界信息的获取将极为有限\n2) 林昊父母离开的路线只能是星陨峡\n3) 建议补充「谁在暗中监视这个入口」的伏笔\n\n是否同步更新时间线和角色背景？' },
+    { role: 'user', text: '更新，然后在入口加一个古老的封印' },
+    { role: 'ai', text: '已同步更新。新增设定：星陨峡入口处有远古星辰封印，封印上的星纹与林昊左臂胎记相似。\n\n已自动创建伏笔「星陨峡封印」→ 关联角色：林昊，关联时间线事件：远古诸神时期。一致性审核已通过。' }
+  ]},
+  characters: { name: '角色设计师', sub: '人物塑造 · 关系构建', messages: [
+    { role: 'user', text: '赵无极不应该只是单纯的反派，给他加一个隐藏的悲剧背景' },
+    { role: 'ai', text: '建议为赵无极添加以下背景：赵家嫡系每代继承人都要在 20 岁时接受「星魂试炼」，失败者将失去全部星力沦为废人。赵无极的兄长就在试炼中失败，如今被关在赵家密室。赵无极的骄傲之下隐藏着对命运的恐惧。\n\n是否更新角色档案？' },
+    { role: 'user', text: '更新，顺便调整他和林昊的关系线' },
+    { role: 'ai', text: '已更新。新增关系线：赵无极和林昊的冲突不仅是正邪对立，更是「两种命运困境」的镜像——林昊是被选中的人，赵无极是选择对抗命运的人。两人的核心矛盾将在第 5 章正面爆发。关系复杂度评分从 0.4 提升至 0.7。' }
+  ]},
+  outline: { name: '情节架构师', sub: '剧情编排 · 节奏把控', messages: [
+    { role: 'user', text: '第 3 章的节奏太慢了，帮我重新规划一下这一章的节拍点' },
+    { role: 'ai', text: '第 3 章原节拍：引入→修炼→日常→偶遇苏瑶。张力曲线仅 0.3，偏低。\n\n建议调整为：危机开场（星陨峡异动）→林昊被迫进入峡口→发现封印异象→苏瑶赶到救援→两人短暂联手→封印碎片飞入林昊体内（转折点）。\n\n调整后张力曲线提升至 0.7，符合第 3 章应有的冲突强度。是否应用？' },
+    { role: 'user', text: '应用，然后在结尾加一个悬念钩子' },
+    { role: 'ai', text: '已应用新节拍表。结尾新增悬念钩子：林昊在封印碎片融入体内后，短暂失去了意识。醒来时发现自己身处一个陌生的空间，面前站着一个模糊的身影，声音似曾相识：「你终于来了……我等了很久。」\n\n此钩子已关联伏笔「远古诸神意识残留」，将在第 7 章揭晓。' }
+  ]},
+  writing: { name: '章节写手', sub: '正文生成 · 文风润色', messages: [
+    { role: 'user', text: '这一章的对话太生硬了，林昊不会说这么多话' },
+    { role: 'ai', text: '同意。林昊的性格是沉默寡言型，当前对话 12 句偏多。建议：\n1) 将林昊台词从 12 句减到 4 句，改为用行动和表情代替语言\n2) 苏瑶的台词保持 8 句，形成「她说他沉默」的节奏对比\n3) 最后林昊只说一句话：「走吧。」——比长篇大论更符合人设\n\n要我直接修改正文吗？' },
+    { role: 'user', text: '改吧，顺便把环境描写再丰富一些' },
+    { role: 'ai', text: '已完成修改：\n• 林昊台词 12→4 句，对话密度下降 67%\n• 新增 3 处环境描写（星陨峡风声、封印光芒的质感、远处山脉轮廓）\n• 章节字数从 4,200 调整为 4,680\n• 人设一致性评分从 0.6 提升至 0.9\n\n修改后正文已同步到写作页面，可在编辑器中查看。' }
+  ]}
+};
+
+const quickActions = {
+  dashboard: ['查看进度', '任务建议', '全局检查'],
+  worldbuilding: ['优化设定', '检查一致性', '补充细节'],
+  characters: ['深化人设', '生成关系', '设计弧线'],
+  outline: ['重排节奏', '添加伏笔', '检查逻辑'],
+  writing: ['生成初稿', '审核', '润色', '去AI味']
+};
+
+let currentPage = 'dashboard';
+let chatPanelOpen = false;
+
+function getCurrentPage() {
+  const active = document.querySelector('.nav-item.active');
+  if (active) return active.dataset.page || 'dashboard';
+  return 'dashboard';
+}
+
+function updateChatForPage(page) {
+  const agent = chatAgents[page] || chatAgents.dashboard;
+  document.getElementById('chatAgentName').textContent = agent.name;
+  document.getElementById('chatAgentSub').textContent = agent.sub;
+  const body = document.getElementById('chatBody');
+  body.innerHTML = agent.messages.map(m => {
+    const cls = m.role === 'user' ? 'user' : 'ai';
+    const text = m.text.replace(/\\n/g, '<br>');
+    return '<div class="chat-msg ' + cls + '">' + text + '</div>';
+  }).join('');
+  body.scrollTop = body.scrollHeight;
+  const actions = quickActions[page] || quickActions.dashboard;
+  const actionsEl = document.getElementById('chatQuickActions');
+  actionsEl.innerHTML = actions.map(a =>
+    '<button class="chat-quick-btn" onclick="quickAction(\'' + a + '\')">' + a + '</button>'
+  ).join('');
+}
+
+function toggleChatPanel() {
+  chatPanelOpen = !chatPanelOpen;
+  const panel = document.getElementById('chatPanel');
+  const btn = document.getElementById('chatToggleBtn');
+  if (chatPanelOpen) {
+    panel.classList.add('open');
+    btn.textContent = '对话';
+    currentPage = getCurrentPage();
+    updateChatForPage(currentPage);
+  } else {
+    panel.classList.remove('open');
+  }
+}
+
+function closeChat() {
+  chatPanelOpen = false;
+  document.getElementById('chatPanel').classList.remove('open');
+}
+
+function minimizeChat() {
+  chatPanelOpen = false;
+  document.getElementById('chatPanel').classList.remove('open');
+}
+
+function sendChatMessage() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+  const body = document.getElementById('chatBody');
+  const userMsg = document.createElement('div');
+  userMsg.className = 'chat-msg user';
+  userMsg.textContent = text;
+  body.appendChild(userMsg);
+  input.value = '';
+  body.scrollTop = body.scrollHeight;
+  const typingMsg = document.createElement('div');
+  typingMsg.className = 'chat-msg typing';
+  typingMsg.textContent = '思考中...';
+  body.appendChild(typingMsg);
+  body.scrollTop = body.scrollHeight;
+  setTimeout(() => {
+    body.removeChild(typingMsg);
+    const aiMsg = document.createElement('div');
+    aiMsg.className = 'chat-msg ai';
+    const page = getCurrentPage();
+    const responses = {
+      dashboard: '收到指令。我已将任务分配给对应的 Agent 处理，完成后会通知你结果。',
+      worldbuilding: '已收到修改建议。正在更新世界观设定，完成后将自动触发一致性审核。预计 10 秒内完成。',
+      characters: '好的，我来分析这个角色的优化方向。从人设一致性、关系网和故事弧线三个维度进行深度调整，稍后给你方案。',
+      outline: '正在重新分析剧情结构和节奏曲线。已识别 3 个可优化节点，正在生成新的节拍方案。',
+      writing: '收到。正在根据反馈调整正文内容，注意保持文风一致性和人设匹配度。修改完成后会自动同步到编辑器。'
+    };
+    aiMsg.textContent = responses[page] || '收到，正在处理中...';
+    body.appendChild(aiMsg);
+    body.scrollTop = body.scrollHeight;
+  }, 1200);
+}
+
+function quickAction(action) {
+  const input = document.getElementById('chatInput');
+  const prompts = {
+    '查看进度': '帮我检查一下当前的整体写作进度',
+    '任务建议': '基于当前状态，给我下一步的最优建议',
+    '全局检查': '对所有已完成的设定做一次全局一致性检查',
+    '优化设定': '请分析当前世界观设定，找出可以优化和补充的部分',
+    '检查一致性': '检查当前设定中是否存在逻辑矛盾或前后不一致的地方',
+    '补充细节': '当前设定还有哪些维度需要补充？请列出建议',
+    '深化人设': '深入分析当前角色的心理动机和行为逻辑，找出可以深化的点',
+    '生成关系': '分析角色之间的关系网，找出可以增加张力的关系线',
+    '设计弧线': '为当前角色设计完整的成长弧线，包括转折点和关键事件',
+    '重排节奏': '分析当前章节的节奏曲线，重新编排节拍点以增强张力',
+    '添加伏笔': '基于当前剧情走向，设计 2-3 条新的伏笔线索',
+    '检查逻辑': '检查当前大纲是否存在逻辑漏洞或剧情硬伤',
+    '生成初稿': '根据当前节拍表和设定，生成这一章的初稿',
+    '审核': '对当前章节进行全面审核，包括人设一致性、剧情逻辑、文笔质量',
+    '润色': '对当前章节进行文笔润色，提升文学性和画面感',
+    '去AI味': '检测并修改正文中的AI痕迹，使文风更自然、更像人类写作'
+  };
+  input.value = prompts[action] || action;
+  sendChatMessage();
+}
+
+// ===== Chat Panel Dragging =====
+(function() {
+  const panel = document.getElementById('chatPanel');
+  const header = document.getElementById('chatHeader');
+  let isDragging = false, startX, startY, startLeft, startTop;
+  header.addEventListener('mousedown', function(e) {
+    if (e.target.closest('.chat-header-btn')) return;
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    const rect = panel.getBoundingClientRect();
+    startLeft = rect.left;
+    startTop = rect.top;
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!isDragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    panel.style.left = (startLeft + dx) + 'px';
+    panel.style.top = (startTop + dy) + 'px';
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+  });
+  document.addEventListener('mouseup', function() { isDragging = false; });
+})();
+
+// ===== Enter to Send =====
+document.getElementById('chatInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendChatMessage();
+  }
+});
+
+// ===== Update chat on page switch =====
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', function() {
+    if (chatPanelOpen) {
+      setTimeout(() => updateChatForPage(getCurrentPage()), 50);
+    }
+  });
+});
+
+// ===== Inline Edit System =====
+function makeEditable(element, onSave) {
+  const wrap = document.createElement('div');
+  wrap.className = 'editable-wrap';
+  const originalText = element.textContent || element.innerText;
+  element.parentNode.insertBefore(wrap, element);
+  wrap.appendChild(element);
+  const editBtn = document.createElement('button');
+  editBtn.className = 'edit-btn';
+  editBtn.textContent = '编辑';
+  wrap.appendChild(editBtn);
+  editBtn.addEventListener('click', function() {
+    const textarea = document.createElement('textarea');
+    textarea.className = 'edit-textarea';
+    textarea.value = originalText;
+    element.style.display = 'none';
+    editBtn.style.display = 'none';
+    const actions = document.createElement('div');
+    actions.className = 'edit-actions';
+    actions.innerHTML = '<button class="edit-cancel">取消</button><button class="edit-save">保存</button>';
+    wrap.appendChild(textarea);
+    wrap.appendChild(actions);
+    textarea.focus();
+    actions.querySelector('.edit-cancel').addEventListener('click', function() {
+      element.style.display = '';
+      editBtn.style.display = '';
+      wrap.removeChild(textarea);
+      wrap.removeChild(actions);
+    });
+    actions.querySelector('.edit-save').addEventListener('click', function() {
+      const newText = textarea.value.trim();
+      if (newText && newText !== originalText) {
+        element.textContent = newText;
+        if (onSave) onSave(newText);
+        showToast('✓ 设定已更新');
+      }
+      element.style.display = '';
+      editBtn.style.display = '';
+      wrap.removeChild(textarea);
+      wrap.removeChild(actions);
+    });
+  });
+}
+
+// Apply inline editing to worldbuilding collapse bodies
+document.querySelectorAll('.collapse-body').forEach(body => {
+  makeEditable(body, function(newText) {
+    showToast('✓ 设定已更新，已通知一致性审核员检查关联影响');
+  });
+});
+
+// Apply inline editing to kanban items
+document.querySelectorAll('.kanban-item-title').forEach(item => {
+  item.addEventListener('dblclick', function() {
+    const orig = this.textContent;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = orig;
+    input.style.cssText = 'width:100%;border:1px solid var(--border-dark);padding:2px 6px;font-size:13px;font-family:var(--font-serif);background:var(--bg);color:var(--text);outline:none;border-radius:1px;';
+    this.textContent = '';
+    this.appendChild(input);
+    input.focus();
+    input.select();
+    const save = () => {
+      const val = input.value.trim() || orig;
+      this.textContent = val;
+      if (val !== orig) showToast('✓ 已更新');
+    };
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); save(); }
+      if (e.key === 'Escape') { this.textContent = orig; }
+    });
+  });
+});
+
+// Apply inline editing to outline tree chapters
+document.querySelectorAll('.tree-chapter').forEach(item => {
+  item.addEventListener('dblclick', function() {
+    const orig = this.textContent;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = orig;
+    input.style.cssText = 'width:100%;border:1px solid var(--border-dark);padding:2px 6px;font-size:13px;font-family:var(--font-serif);background:var(--bg);color:var(--text);outline:none;border-radius:1px;';
+    this.textContent = '';
+    this.appendChild(input);
+    input.focus();
+    input.select();
+    const save = () => {
+      const val = input.value.trim() || orig;
+      this.textContent = val;
+      if (val !== orig) showToast('✓ 章节已更新');
+    };
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); save(); }
+      if (e.key === 'Escape') { this.textContent = orig; }
+    });
+  });
+});
+
+</script>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Chat Toggle Button -->
+<button class="chat-toggle-btn" id="chatToggleBtn" onclick="toggleChatPanel()">对话</button>
+
+<!-- Chat Panel -->
+<div class="chat-panel" id="chatPanel">
+  <div class="chat-header" id="chatHeader">
+    <div>
+      <div class="chat-header-title" id="chatAgentName">主控Agent</div>
+      <div class="chat-header-sub" id="chatAgentSub">全局协调 · 任务调度</div>
+    </div>
+    <div class="chat-header-actions">
+      <button class="chat-header-btn" onclick="minimizeChat()" title="最小化">—</button>
+      <button class="chat-header-btn" onclick="closeChat()" title="关闭">×</button>
+    </div>
+  </div>
+  <div class="chat-body" id="chatBody">
+  </div>
+  <div class="chat-quick-actions" id="chatQuickActions">
+  </div>
+  <div class="chat-input-area">
+    <textarea class="chat-input" id="chatInput" placeholder="输入你的指令..." rows="2"></textarea>
+    <button class="chat-send-btn" onclick="sendChatMessage()">发送</button>
+  </div>
+</div>
+
+</body>
+</html>

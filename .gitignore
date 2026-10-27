@@ -1,0 +1,35 @@
+# ===== 密钥与环境配置（绝不提交）=====
+.env
+.env.*
+!.env.example
+backend/config/.env
+config/.env
+
+# ===== Python 后端 =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# ===== 前端依赖与构建产物 =====
+node_modules/
+dist/
+*.local
+
+# ===== 用户创作数据（本地运行时生成，不上传）=====
+backend/data/workspaces/*
+!backend/data/workspaces/.gitkeep
+data/workspaces/*
+!data/workspaces/.gitkeep
+
+# ===== 日志 =====
+logs/
+*.log
+
+# ===== 系统文件 =====
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,444 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #0a0a0a;
+  color: #ffffff;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Custom scrollbar — minimal black & white */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #444444;
+}
+
+/* Selection */
+::selection {
+  background: #ffffff;
+  color: #0a0a0a;
+}
+
+/* Focus outline */
+:focus-visible {
+  outline: 1px solid #ffffff;
+  outline-offset: 1px;
+}
+
+/* Buttons base */
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* Inputs base */
+input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* ============== Utility Components ============== */
+
+.nw-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #555555;
+  font-weight: 500;
+}
+
+.nw-card {
+  background: #141414;
+  border: 1px solid #222222;
+  border-radius: 0;
+}
+
+.nw-card-hover {
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.nw-card-hover:hover {
+  border-color: #ffffff;
+}
+
+.nw-divider {
+  height: 1px;
+  background: #222222;
+}
+
+.nw-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  background: transparent;
+  border: 1px solid #2a2a2a;
+  color: #ffffff;
+  transition: all 0.15s ease;
+  border-radius: 0;
+}
+
+.nw-btn:hover {
+  border-color: #ffffff;
+  background: #ffffff;
+  color: #0a0a0a;
+}
+
+.nw-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.nw-btn-primary {
+  background: #ffffff;
+  color: #0a0a0a;
+  border-color: #ffffff;
+}
+
+.nw-btn-primary:hover {
+  background: #cccccc;
+  border-color: #cccccc;
+  color: #0a0a0a;
+}
+
+.nw-btn-ghost {
+  border-color: transparent;
+  color: #888888;
+}
+
+.nw-btn-ghost:hover {
+  border-color: #2a2a2a;
+  background: #141414;
+  color: #ffffff;
+}
+
+.nw-input {
+  width: 100%;
+  padding: 8px 12px;
+  background: #0a0a0a;
+  border: 1px solid #222222;
+  color: #ffffff;
+  font-size: 13px;
+  transition: border-color 0.15s ease;
+  border-radius: 0;
+}
+
+.nw-input:focus {
+  outline: none;
+  border-color: #ffffff;
+}
+
+.nw-input::placeholder {
+  color: #555555;
+}
+
+.nw-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: #0a0a0a;
+  border: 1px solid #222222;
+  color: #ffffff;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+  transition: border-color 0.15s ease;
+  border-radius: 0;
+}
+
+.nw-textarea:focus {
+  outline: none;
+  border-color: #ffffff;
+}
+
+/* ============== Markdown Preview ============== */
+
+.markdown-preview {
+  line-height: 1.7;
+  color: #cccccc;
+  font-size: 13px;
+}
+
+.markdown-preview h1 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 1.2rem 0 0.6rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #222222;
+}
+
+.markdown-preview h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 1rem 0 0.5rem;
+}
+
+.markdown-preview h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0.8rem 0 0.4rem;
+}
+
+.markdown-preview p {
+  margin: 0.5rem 0;
+}
+
+.markdown-preview ul, .markdown-preview ol {
+  padding-left: 1.4rem;
+  margin: 0.5rem 0;
+}
+
+.markdown-preview li {
+  margin: 0.2rem 0;
+}
+
+.markdown-preview code {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  padding: 0.1rem 0.35rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.8em;
+  color: #ffffff;
+}
+
+.markdown-preview pre {
+  background: #111111;
+  border: 1px solid #222222;
+  padding: 0.8rem 1rem;
+  overflow-x: auto;
+  margin: 0.6rem 0;
+}
+
+.markdown-preview pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: 0.85em;
+}
+
+.markdown-preview blockquote {
+  border-left: 2px solid #ffffff;
+  padding-left: 0.8rem;
+  margin: 0.5rem 0;
+  color: #888888;
+  font-style: italic;
+}
+
+.markdown-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.6rem 0;
+  font-size: 12px;
+}
+
+.markdown-preview th, .markdown-preview td {
+  border: 1px solid #222222;
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+}
+
+.markdown-preview th {
+  background: #141414;
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.markdown-preview strong {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.markdown-preview a {
+  color: #ffffff;
+  text-decoration: underline;
+  text-decoration-color: #555555;
+}
+
+.markdown-preview a:hover {
+  text-decoration-color: #ffffff;
+}
+
+.markdown-preview hr {
+  border: none;
+  border-top: 1px solid #222222;
+  margin: 1rem 0;
+}
+
+/* ============== Writing Editor ============== */
+
+.writing-content {
+  font-size: 15px;
+  line-height: 1.9;
+  color: #dddddd;
+  letter-spacing: 0.02em;
+}
+
+.writing-content p {
+  margin: 0.8rem 0;
+  text-indent: 2em;
+}
+
+.writing-content h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  text-align: center;
+  margin: 1.5rem 0 1rem;
+  color: #ffffff;
+  text-indent: 0;
+}
+
+.writing-content h2 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 1.2rem 0 0.8rem;
+  color: #ffffff;
+  text-indent: 0;
+}
+
+/* ============== Status badges ============== */
+
+.nw-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid #2a2a2a;
+  background: transparent;
+  color: #888888;
+  border-radius: 0;
+}
+
+.nw-badge-success {
+  border-color: #4ade80;
+  color: #4ade80;
+}
+
+.nw-badge-warning {
+  border-color: #fbbf24;
+  color: #fbbf24;
+}
+
+.nw-badge-error {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.nw-badge-info {
+  border-color: #60a5fa;
+  color: #60a5fa;
+}
+
+.nw-badge-white {
+  border-color: #ffffff;
+  color: #ffffff;
+}
+
+/* ============== Animations ============== */
+
+@keyframes nw-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.nw-pulse {
+  animation: nw-pulse 2s ease-in-out infinite;
+}
+
+@keyframes nw-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.nw-fade-in {
+  animation: nw-fade-in 0.2s ease-out;
+}
+
+/* ============== Kanban ============== */
+
+.kanban-column {
+  background: #111111;
+  border: 1px solid #222222;
+  min-height: 300px;
+}
+
+.kanban-item {
+  background: #141414;
+  border: 1px solid #222222;
+  transition: all 0.15s ease;
+}
+
+.kanban-item:hover {
+  border-color: #ffffff;
+}
+
+/* ============== Tabs ============== */
+
+.nw-tabs {
+  display: flex;
+  border-bottom: 1px solid #222222;
+}
+
+.nw-tab {
+  padding: 10px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #555555;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.15s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+
+.nw-tab:hover {
+  color: #888888;
+}
+
+.nw-tab.active {
+  color: #ffffff;
+  border-bottom-color: #ffffff;
+}

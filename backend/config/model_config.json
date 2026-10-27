@@ -1,0 +1,83 @@
+{
+  "description": "模型分级配置 — 双 Provider（火山引擎 + DeepSeek），按任务类型智能路由",
+  "providers": {
+    "volcano": {
+      "name": "火山引擎（豆包系列）",
+      "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+      "api_key_env": "VOLCANO_API_KEY",
+      "enabled": true,
+      "models": {
+        "volc-pro": {
+          "name": "豆包 Pro 32K",
+          "endpoint_id": "",
+          "endpoint_id_env": "VOLCANO_PRO_ENDPOINT",
+          "context_window": 32000,
+          "max_output_tokens": 4096,
+          "description": "推理和创意能力强，适合高阶创意、推理、对话任务；endpoint_id 运行时从环境变量 VOLCANO_PRO_ENDPOINT 读取（见 app/llm/volcano.py）"
+        }
+      }
+    },
+    "deepseek": {
+      "name": "DeepSeek",
+      "base_url": "https://api.deepseek.com/v1",
+      "api_key_env": "DEEPSEEK_API_KEY",
+      "enabled": true,
+      "models": {
+        "deepseek-chat": {
+          "name": "DeepSeek Chat (V3)",
+          "context_window": 64000,
+          "max_output_tokens": 8192,
+          "description": "性价比高，适合大量文本生成、初稿写作、摘要等任务"
+        }
+      }
+    }
+  },
+  "task_types": {
+    "creative_high": {
+      "description": "创意高阶任务 — 世界观/角色设定，需要最好的文笔质量",
+      "primary": {"provider": "volcano", "model": "volc-pro"},
+      "fallback_1": {"provider": "deepseek", "model": "deepseek-chat"},
+      "fallback_2": {"provider": "volcano", "model": "volc-pro"}
+    },
+    "reasoning": {
+      "description": "强推理任务 — 大纲/情节规划/质量审核",
+      "primary": {"provider": "volcano", "model": "volc-pro"},
+      "fallback_1": {"provider": "deepseek", "model": "deepseek-chat"},
+      "fallback_2": {"provider": "volcano", "model": "volc-pro"}
+    },
+    "creative_bulk": {
+      "description": "批量创意任务 — 初稿写作/修订润色，性价比高",
+      "primary": {"provider": "deepseek", "model": "deepseek-chat"},
+      "fallback_1": {"provider": "volcano", "model": "volc-pro"},
+      "fallback_2": {"provider": "deepseek", "model": "deepseek-chat"}
+    },
+    "dialogue": {
+      "description": "人物对话 — 角色感强，需要细腻的表达能力",
+      "primary": {"provider": "volcano", "model": "volc-pro"},
+      "fallback_1": {"provider": "deepseek", "model": "deepseek-chat"},
+      "fallback_2": {"provider": "volcano", "model": "volc-pro"}
+    },
+    "summary": {
+      "description": "摘要生成 — 轻量快速，注重信息提取",
+      "primary": {"provider": "deepseek", "model": "deepseek-chat"},
+      "fallback_1": {"provider": "volcano", "model": "volc-pro"},
+      "fallback_2": {"provider": "deepseek", "model": "deepseek-chat"}
+    },
+    "light": {
+      "description": "轻量任务 — 字数调整/格式转换/简单归纳",
+      "primary": {"provider": "deepseek", "model": "deepseek-chat"},
+      "fallback_1": {"provider": "volcano", "model": "volc-pro"},
+      "fallback_2": {"provider": "deepseek", "model": "deepseek-chat"}
+    }
+  },
+  "agent_task_type_mapping": {
+    "worldbuilder": "creative_high",
+    "char_designer": "creative_high",
+    "plot_architect": "reasoning",
+    "chapter_writer": "creative_bulk",
+    "consistency_checker": "reasoning",
+    "humanizer_agent": "creative_bulk",
+    "timeline_keeper": "light",
+    "main_agent": "reasoning"
+  }
+}
