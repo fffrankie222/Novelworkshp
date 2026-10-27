@@ -1,399 +1,489 @@
-# NovelWorkshop v3.2 — 网文写作多 Agent 系统
+# NovelWorkshop
 
-## 前置要求
-- **Python 3.11+**（推荐 3.12）
-- **Node.js 18+**（推荐 20 LTS）
-- Windows 10/11，已配置好 API Key（见下方说明）
+自托管的多 Agent 长篇网文写作系统。
 
-## 一键启动（Windows）
+8 个专业 Agent 分工协作，覆盖世界观构建、角色设计、大纲规划、章节成稿、审核修订的完整链路。创作控制权全程归属作者：每一步上下文、大纲与正文均可审查、修改与驳回，AI 负责执行。
 
-**双击运行 `start.bat`**
+- 后端 Python 约 11,000 行，前端 TypeScript 约 8,500 行
+- 60 个 REST API，其中 11 个为写作工坊专属接口
+- 单章全链路 LLM 成本实测约 0.46 元（详见多模型分级路由一节）
+- 全部数据本地落盘，结构化 JSON + Markdown，支持整体迁移
 
-它会自动：安装后端依赖 → 安装前端依赖 → 启动后端(8000) + 前端(5173)
+支持历史、科幻、脑洞、悬疑惊悚四类长篇题材。
 
-## 手动启动
+---
 
-**终端 1 — 后端：**
-```cmd
-cd backend
-pip install -r requirements.txt
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+## 背景与问题定义
+
+AI 长篇写作存在三类尚未被主流工具妥善解决的工程问题。
+
+### 一、长篇上下文失效
+
+通用对话产品的上下文窗口无法支撑长篇连载。扩大窗口不能解决根本问题：百万字级正文远超窗口容量；更关键的是，即使内容处于窗口内，模型对中部内容的注意力利用率也会随长度增加而显著衰减。
+
+具体表现为：写作第 80 章时，模型已无法可靠引用第 3 章埋设的伏笔、六十章前的角色誓言、早期确立的力量体系规则。设定漂移、前后矛盾、人物行为不一致等问题随章节数持续累积。
+
+对连载作品而言，此类缺陷是致命的。网文的核心资产是长期积累的设定与人物关系，出现系统性不一致后，前期数十万字的铺垫价值大幅折损。且该类崩坏具有渐进性：前十章难以察觉，五十章后在读者侧集中暴露，彼时返工成本已超过重写成本。
+
+### 二、生成过程不可干预
+
+一键式生成的核心缺陷是过程黑盒：输入创意、输出成稿，中间环节对作者完全不可见、不可控。发现节奏失衡或对话质量问题后，只能整章重写。
+
+短篇场景下该缺陷尚可容忍，长篇场景下后果严重。长篇的节奏具有整体设计属性——压抑章节与爆发章节的分布、伏笔的埋设与回收时机均需全局规划。一键生成将整体设计交由模型即兴决定，产出单章质量尚可、整体结构松散；而单章返工会级联影响基于该章的全部后续规划。
+
+### 三、成本结构失衡
+
+全链路使用旗舰模型，单章成本接近半本实体书；全链路使用廉价模型，大纲逻辑与人物动机等骨架环节质量先行失效。二者往往互相绑定：控制成本意味着牺牲结构质量，保障质量意味着成本失控。多数工具回避该矛盾——或默认旗舰模型（成本由用户承担），或默认廉价模型（质量损失由作品承担）。
+
+NovelWorkshop 针对上述三类问题分别给出工程解法：分层上下文工程、三步人机协作工坊、多模型分级路由。以下各节说明具体实现、设计依据与实测数据。
+
+---
+
+## 核心设计
+
+### 一、上下文工程：滑动窗口 + 结构化摘要
+
+解决长篇上下文失效的路径不是扩大窗口，而是分层记忆管理。
+
+直接方案（全量前文拼接）在长篇规模下不可行：上下文长度随章节数线性增长，且模型对超长上下文中部信息的利用率显著下降。仅注入近期章节的变体方案则导致远期伏笔与设定丢失。
+
+当前方案将写作上下文拆分为 10 个独立注入项，每项具备独立数据来源与 Token 上限，由引擎统一调度：
+
+```
+注入 AI 写作上下文的 10 项内容                Token 上限
+├── 1  世界观精简版                          2000
+├── 2  卷章结构全量                          3000
+├── 3  当前卷故事线                           500
+├── 4  当前章信息（本章在大纲中的位置）        500
+├── 5  前 10 章摘要                          2000
+├── 6  后 5 章预告                           1000
+├── 7  出场角色详细卡                        3000
+├── 8  活跃伏笔                              2000
+├── 9  风格指南                              1500
+└── 10 写作规则                               500
+            总预算 16000 tokens，超限自动截断并标记
 ```
 
-**终端 2 — 前端：**
-```cmd
+第 5 项为滑动窗口的核心机制：每章定稿时由 LLM 自动生成压缩摘要，写作时注入最近 10 章摘要而非全文。信息密度是关键考量——10 章全文约两万字，其中对当前章节写作真正有效的信息占比很低；压缩后同等 Token 预算可覆盖更长的回溯距离。第 6 项"后 5 章预告"为多数同类工具缺失的机制：模型知悉后续章节规划，才能避免提前透支预留的高潮内容。
+
+角色状态独立维护于 `state/character_states.json` 而非写作时从正文实时抽取：正文中的角色状态分散且隐式，实时抽取的延迟与准确率均不满足要求。世界观硬规则与活跃伏笔独立成层的原因相同——两者最易被模型忽略，需要显式且稳定地存在于 prompt 中。
+
+所有上下文按 Token 预算统一调度，超预算自动降级为摘要形态。每项均可配置、可关闭，关闭后系统重新分配预算。
+
+**上下文透明化**是架构设计的核心目标之一。同类工具中，AI 写作时"读取了什么信息"属于黑盒；本系统中，任意时刻均可查看注入的完整上下文并直接编辑。该能力的价值在于问题定位：只有确认 AI 实际获取的信息，才能区分生成问题源于上下文缺陷还是模型理解偏差。缺少上下文可见性时，此类问题只能依靠猜测定位。
+
+### 二、写作工坊：三步人机协作
+
+早期方案为 12 节点全自动流水线，全程后台执行，产出前无干预点。实际问题随即暴露：初稿方向偏离需整章返工，节奏失衡无法中途介入，对话质量问题只能在成稿后修改。
+
+流水线形态在演示场景表现良好，投入实际写作后即暴露局限：单章生成需等待数分钟，方向性错误导致整章作废。根本问题在于，写作的判断权不应交由流水线——作者需要在过程中介入，而非仅在结果上评分。
+
+当前方案将章节写作重构为三步协作模式，每步确认后方可进入下一步。
+
+**第一步：上下文确认。**
+
+AI 自动组装本章写作上下文，以可编辑文本形式完整呈现。可插入隐藏设定、删除冗余信息、临时调整规则，修改完成后再进入下一步。
+
+设计意图为动笔前对齐。多数写作事故源于 AI 基于不完整上下文开始生成：方向偏离后，需回溯排查缺失信息。将上下文完整呈现等同于动笔前的信息对账——两分钟的核对成本可避免半小时级的返工。
+
+**第二步：章节大纲与出场角色。**
+
+AI 基于上下文生成本章结构：核心冲突、场景拆分（3-5 个场景，含各场景目的与转折点）、出场角色及其剧情功能、情绪曲线。增删场景、调整角色与节奏均为交互式操作，修改后 AI 按新结构重新对齐。
+
+本环节是工坊的重心。章节质量问题多数源于结构层——节奏、冲突强度、动机成立性——在文字层几乎不可修复，必须回到结构层解决。本环节将结构决策显式化：审阅大纲即可判断章节质量走向，成本远低于通读成稿后再判断。
+
+修改后的重新对齐是关键实现细节：对齐逻辑若缺失，修改大纲后模型仍按原结构生成，修改即告无效。
+
+**第三步：逐场景写作。**
+
+每场景 600-1200 字，逐场景生成与确认。不满意的单场景可独立重写，不影响已完成场景；整章合并后统一进行衔接润色。写作全程右侧挂载常驻对话面板，可随时下达局部修改指令（调整对话、补充伏笔、调整节奏）。
+
+按场景而非按章确认是本环节的关键设计：整章确认的修改成本高且定位困难，场景粒度将修改范围限定在数百字内。场景间衔接在合并后统一处理，避免分场景写作导致的过渡生硬。
+
+对话面板常驻，写作过程中可随时介入而无需等待场景完成，成本远低于成稿后返工。
+
+**按需审核。**
+
+整章完成后按需触发：一致性审核（人设、设定、时间线、伏笔矛盾）+ 质量审核（节奏、情绪、AI 痕迹、冗余）+ 字数偏差。问题以列表呈现，支持定位跳转，逐条选择自动修复、手动修改或忽略。
+
+审核设计为按需触发而非自动执行：自动审核会在不合适的时机打断写作流程，且审核本身产生成本。触发权归作者。
+
+设计立场：以三步人机协作取代流水线全自动串行，每步可控——作者主导决策，AI 负责执行。
+
+12 节点流水线保留为一键模式（经工作流 API 触发，适用于产量优先的批量场景），三步工坊为默认路径。两条路径共享上下文引擎与状态基础设施，产出格式一致，详见系统架构一节。
+
+### 三、多模型分级路由：单章成本约 0.46 元
+
+不同环节对模型能力的要求差异显著，统一模型配置必然导致浪费或质量妥协。系统按任务性质分级调用模型，双 Provider 自动路由与降级。
+
+| 环节 | 任务分级 | 模型 | 单章成本分摊 |
+|------|------|------|------|
+| 世界观构建 | creative_high | 豆包-pro（火山方舟） | 一次性，全书复用 |
+| 章节大纲、情节规划 | reasoning | 豆包-pro | ~0.02 元 |
+| 章节初稿 | creative_bulk | DeepSeek | ~0.14 元 |
+| 人物对话 | dialogue | 豆包-pro | ~0.18 元 |
+| 质量审核 | reasoning | 豆包-pro | ~0.02 元 |
+| 修订润色 | creative_bulk | DeepSeek | ~0.10 元 |
+| **合计** | | | **约 0.46 元/章** |
+
+架构设计目标为单章全链路成本 1 元以内，实测约为该目标的一半。核心策略：推理密集环节使用强模型保障结构质量，生成密集环节使用高性价比模型承担产量。按此结构，百万字级作品的全链路模型成本可控制在千元级。
+
+成本分摊数据来自真实章节实测，非估算值。值得注意的结构性结论：人物对话为单项最高成本（0.18 元），因对话质量对阅读体验影响最大，低成本模型的对话质量差距显著；章节初稿 0.14 元，源于单次调用短、依赖 DeepSeek 的批量生成能力；大纲与审核各 0.02 元，调用频次低且输出短。
+
+模型路由完全由 `model_config.json` 配置，更换模型无需修改代码。仅配置 DeepSeek 单一 Key 时系统可完整运行：创意任务自动降级至 DeepSeek，质量下降一级但流程完整。此为刻意设计，避免"必须注册两个平台账号"构成使用门槛。
+
+### 四、长篇一致性基础设施
+
+- **伏笔系统**：每条伏笔具备完整生命周期状态（planted → active → advancing → resolved），看板式管理。写新章时未回收伏笔自动注入上下文。
+- **一致性审查 Agent**：独立于写手，交叉检查设定冲突、前后矛盾、人设漂移。
+- **时间线管理**：故事内时序独立维护，防止时序错乱。
+- **写入保护**：审核期间对话产生的设定变更被抑制，防止自动提取机制篡改审核中的内容。
+
+伏笔系统采用状态机而非简单清单，原因在于伏笔在长篇中具有完整生命周期：埋设、激活、推进、回收四态对应不同处理策略，两态模型无法区分"刚埋设"与"搁置三十章未动"的伏笔，而二者的处理策略完全不同。
+
+一致性审查 Agent 独立于写手是刻意的架构选择：写手自审存在系统性偏差，独立 Agent 持有相同上下文执行交叉检查，问题发现率更高。
+
+写入保护机制源于实际问题：审核进行中，对话面板产生的新设定若被自动提取机制立即写入角色卡，会导致审核内容与最新设定不一致、审核结果失效。当前设计在审核期间抑制自动写入，审核结束后统一合并。
+
+### 五、网文特化的风格引擎
+
+结构化 `style_guide` 注入所有 Agent 的 system prompt，约束全流程风格：
+
+```json
+{
+  "narrative_pov": "第三人称限知视角",
+  "tone": "轻松幽默但关键时刻严肃",
+  "chapter_ending_hook": true,
+  "pacing": {
+    "overall_curve": "慢热开局，每10章一个小高潮，每30章一个大高潮",
+    "tension_density": "每2000字至少一个冲突点或爽点"
+  },
+  "webnovel_conventions": {
+    "face_slapping_rhythm": "压抑3章，爆发1章",
+    "power_progression": "每10章一个小境界突破",
+    "foreshadowing_rules": "伏笔最多跨5章必须回收，重要伏笔跨卷回收"
+  }
+}
+```
+
+打脸节奏、境界推进、钩子密度、章末悬念——网文创作规律被显式编码为规则，而非依赖模型自行理解。
+
+通用模型对网文的理解停留在概念层：具备冲突、爽点、钩子等概念，但缺乏节奏编排的量化知识——爽点分布密度、钩子埋设深度、打脸的压抑周期。此类知识属于网文作者的隐性经验，不写入 prompt 时模型按通用文学路径生成，产出"文笔合格但不符合网文范式"。
+
+风格引擎的作用是将隐性知识显式化：`"压抑3章，爆发1章"` 这样的规则可直接约束生成节奏，效果远优于笼统的"要有爽点"。规则完全可修改，风格引擎提供的是默认值而非约束。
+
+### 六、对话驱动的设定工坊
+
+世界观、角色、大纲、写作四个场景均采用"AI 提案 → 作者反馈 → 确认落盘"的多轮对话。确认结果自动写入结构化数据（`world_data.json` / `characters.json` / `outline.json`），注入后续全部环节：
+
+```
+创建书籍 → 对话构建世界观 → 对话设计角色（14字段结构化） → 对话规划大纲
+   → 工坊逐章创作（上下文 → 大纲 → 逐场景 → 审核） → 修订润色 → 导出成稿
+```
+
+大纲确认后自动生成分章条目；章节定稿时自动生成压缩摘要供后续章节引用。每一步产出均为下一步输入，链路闭环。
+
+采用对话而非表单的原因：设定构建是发散性任务，表单无法承载探索过程；对话支持追问、方案对比与推翻重来。但对话产出必须落到结构化数据，否则下游 Agent 无法消费。每个对话场景的终点是"确认并写入 JSON"——对话承载过程，结构化承载结果。
+
+---
+
+## 系统架构
+
+```
+                    ┌─────────────────────────────────────────────┐
+                    │  前端  React 18 + TypeScript + Vite          │
+                    │  5 页面 / 15 组件 / Zustand 状态管理         │
+                    │  Dashboard · 世界观 · 角色 · 大纲 · 写作工坊  │
+                    └──────────────────────┬──────────────────────┘
+                                           │ REST / JSON（60 端点）
+┌──────────────────────────────────────────┴───────────────────────────────────┐
+│                      API 层  FastAPI · 12 个路由模块                          │
+│   writing_workshop×11 · chat×10 · books×8 · chapters×7 · characters×5        │
+│   workflows×4 · outline×3 · hooks×3 · approvals×3 · world/timeline/agents     │
+└───────┬──────────────┬──────────────────┬───────────────────┬────────────────┘
+        │              │                  │                   │
+┌───────┴──────┐ ┌─────┴───────┐ ┌────────┴────────┐ ┌─────────┴─────────┐
+│ 写作上下文引擎 │ │  工作流引擎  │ │   统一对话引擎    │ │     审批服务       │
+│ 10 项注入     │ │ 4 类节点     │ │  多轮会话        │ │  暂停 / 恢复       │
+│ Token 预算 16K │ │ 4 条工作流    │ │  结构化提取      │ │  审批产物落盘      │
+└───────┬──────┘ └─────┬───────┘ └────────┬────────┘ └─────────┬─────────┘
+        │              │                   │                    │
+┌───────┴──────────────┴───────────────────┴────────────────────┴───────────────┐
+│           Agent 层  BaseAgent 基类 + 8 个专职 Agent                             │
+│           每个独立 System Prompt · ModelRouter 按任务类型分级调用              │
+└───────────────────────────────────┬───────────────────────────────────────────┘
+                                    │
+┌───────────────────────────────────┴───────────────────────────────────────────┐
+│        LLM 层  ModelRouter · 6 级任务分类 × 主备降级链 × 双 Provider            │
+│         火山方舟 Provider（豆包 Pro 32K）        DeepSeek Provider（V3 64K）    │
+└───────────────────────────────────┬───────────────────────────────────────────┘
+                                    │
+┌───────────────────────────────────┴───────────────────────────────────────────┐
+│       存储层  JSON + Markdown · 按书籍目录组织 · 全部本地落盘                     │
+│       详见下方"数据层"目录树                                                   │
+└────────────────────────────────────────────────────────────────────────────────┘
+```
+
+技术栈：FastAPI / React 18 / TypeScript / Vite / Tailwind CSS / Zustand。前端在 API 不可用时自动降级 Mock 数据。
+
+### API 层：12 个路由模块，60 个端点
+
+| 模块 | 端点数 | 职责 |
+|------|--------|------|
+| writing_workshop | 11 | 三步工坊全流程（上下文/大纲/场景/审核/状态） |
+| chat | 10 | 各场景对话引擎（世界观/角色/大纲/写作/通用） |
+| books | 8 | 书籍 CRUD 与统计 |
+| chapters | 7 | 章节 CRUD、草稿/定稿管理 |
+| characters | 5 | 角色卡 CRUD |
+| workflows | 4 | 4 条工作流的启动、状态、恢复 |
+| outline | 3 | 卷章结构与分章条目 |
+| hooks | 3 | 伏笔看板（数据源为 outline.json） |
+| approvals | 3 | 审批节点：待审列表、通过/驳回 |
+| world | 2 | 世界观数据读写 |
+| timeline | 2 | 时间线事件读写 |
+| agents | 2 | Agent 注册表与状态 |
+
+### Agent 层：8 个专职 Agent 与模型分级
+
+| Agent | 代码模块 | 职责 | 任务分级 | 默认模型 |
+|-------|----------|------|----------|----------|
+| 世界观架构师 | worldbuilder | 地理、势力、力量体系、社会规则 | creative_high | 豆包 Pro |
+| 角色设计师 | char_designer | 14 字段角色卡：动机、缺陷、语言风格、成长弧线 | creative_high | 豆包 Pro |
+| 情节架构师 | plot_architect | 大纲规划、卷章结构、节奏控制 | reasoning | 豆包 Pro |
+| 章节写手 | chapter_writer | 逐场景撰写正文，遵循风格规范 | creative_bulk | DeepSeek |
+| 一致性审查员 | consistency_checker | 观察（事实提取）/ 反思（状态 delta）/ 审核（多维质检）三模式 | reasoning | 豆包 Pro |
+| 文风润色师 | humanizer_agent | 统一文风、消除 AI 痕迹、执行修复 | creative_bulk | DeepSeek |
+| 时间线管理员 | timeline_keeper | 维护故事内时序 | light | DeepSeek |
+| 总调度 | main_agent | Agent 编排、对话路由 | reasoning | 豆包 Pro |
+
+所有 Agent 继承 `base_agent.py` 统一基类：System Prompt 加载、上下文注入、结构化输出解析、错误重试在基类收口，专职 Agent 仅实现业务差异。
+
+### LLM 层：ModelRouter 六级分类与降级链
+
+模型选择不写入代码，全部由 `backend/config/model_config.json` 驱动，更换模型无需修改代码：
+
+| 任务分级 | 用途 | 主模型 | 降级链 |
+|----------|------|--------|--------|
+| creative_high | 世界观、角色设定 | 豆包 Pro | → DeepSeek |
+| reasoning | 大纲、情节规划、质量审核 | 豆包 Pro | → DeepSeek |
+| creative_bulk | 初稿写作、修订润色 | DeepSeek | → 豆包 Pro |
+| dialogue | 人物对话 | 豆包 Pro | → DeepSeek |
+| summary | 摘要生成 | DeepSeek | → 豆包 Pro |
+| light | 字数调整、格式转换 | DeepSeek | → 豆包 Pro |
+
+每级配置 primary + fallback_1 + fallback_2 三层：主模型调用失败自动沿降级链重试。这是"仅配置单一 DeepSeek Key 即可完整运行"的实现基础——火山 Provider 不可用时，creative_high / reasoning / dialogue 三级全部降级至 DeepSeek。
+
+### 上下文引擎
+
+10 项注入与 Token 预算表见"核心设计 · 上下文工程"一节。引擎实现位于 `app/services/writing_context.py`：每项注入对应独立构建函数与独立上限，超限截断并置 truncated 标记；组装结果对 API 层与前端全量可见、可编辑，即上下文透明化的实现位置。
+
+### 工作流引擎：4 类节点，4 条工作流
+
+引擎支持四类节点：
+
+- **agent** — 调用 LLM 执行任务
+- **script** — 纯 Python 脚本节点，不消耗 Token（上下文组装、状态应用、合并）
+- **condition** — 条件分支，支持循环（审核不通过回到修订）
+- **approval** — 暂停流程等待人工审批，审批产物落盘，恢复后继续
+
+引擎特性：工作流状态持久化至书籍目录，每个节点执行完成后写入 checkpoint，进程中断后从断点恢复，不重跑已完成节点。
+
+```
+新书创建 novel_setup
+  build_world → design_characters → create_outline → approval(确认开书)
+
+章节生产 chapter_production（12 节点，一键模式）
+  plan → compose → write → observe → reflect → apply_state
+       → normalize → audit → check_audit ─┐
+            ↑ revise ←────────────────────┘
+       → approval(审阅章节) → finalize
+
+修订润色 revision
+  humanize → approval
+
+角色导入 character_import（长文本批量提炼）
+  split_text → distill → merge → export_graph
+```
+
+**12 节点章节流水线逐节点说明**（一键模式）：
+
+| # | 节点 | 类型 | 执行者 | 职责 |
+|---|------|------|--------|--------|
+| 1 | plan | agent | 情节架构师 | 生成本章写作意图 |
+| 2 | compose | script | — | 组装 10 项上下文 |
+| 3 | write | agent | 章节写手 | 正文生成 |
+| 4 | observe | agent | 一致性审查员（观察模式） | 从正文提取事实 |
+| 5 | reflect | agent | 一致性审查员（反思模式） | 计算状态变更 delta |
+| 6 | apply_state | script | — | 应用 delta 至角色卡/伏笔/时间线 |
+| 7 | normalize | agent | 章节写手 | 字数调整（±10% 容差） |
+| 8 | audit | agent | 一致性审查员（审核模式） | 多维质量审核 |
+| 9 | check_audit | condition | — | 存在关键问题 → 进入 revise 循环 |
+| 10 | revise | agent | 文风润色师 | 消除 AI 痕迹 + 修复审核问题 |
+| 11 | approval | approval | — | 暂停，等待用户审阅章节 |
+| 12 | finalize | script | — | 定稿：生成压缩摘要、更新状态 |
+
+流水线自动执行节点 1-10 后才进入人工审批，方向性错误意味着前序九个节点全部作废——这是默认路径切换为三步工坊的直接原因。流水线保留给质量要求宽松、产量优先的批量场景。
+
+### 写作工坊：11 个 API 构成三步协作（默认路径）
+
+```
+第一步 上下文确认
+  GET  /workshop/context/{n}      获取组装完成的 10 项上下文（含 Token 统计）
+  PUT  /workshop/context/{n}      编辑后写回，后续按修改版本生成
+
+第二步 章节大纲
+  POST /workshop/outline/generate  生成本章场景拆分（3-5 场景/角色/情绪曲线）
+  GET  /workshop/outline/{n}      获取大纲
+  PUT  /workshop/outline/{n}      修改后写回，按新大纲重新对齐
+
+第三步 逐场景写作
+  POST /workshop/write-scene      逐场景生成（600-1200 字/场景）
+  POST /workshop/rewrite-scene    单场景重写，不影响已完成场景
+  GET  /workshop/full-chapter/{n} 场景合并成整章 + 衔接润色
+
+按需审核
+  POST /workshop/audit/{n}        触发审核（一致性 + 质量 + 字数偏差）
+  GET  /workshop/audit/{n}        获取审核结果列表
+  GET  /workshop/status/{n}       全流程状态查询
+```
+
+三步工坊与 12 节点流水线的关系：同一引擎的两种驱动方式。工坊将流水线中的上下文组装与结构校验环节交由人工，将正文生成拆分为场景粒度交由人工确认，将"审核 → 修订"由自动循环改为按需触发。基础设施（上下文、状态应用、摘要生成）完全复用。
+
+### 数据层
+
+全部 JSON + Markdown 本地落盘，无外部数据库依赖。每本书独立目录：
+
+```
+backend/data/workspaces/{book_id}/
+├── world/world_data.json          # 世界观：地理 / 势力 / 力量体系 / 社会规则
+├── characters/
+│   ├── characters.json            # 14 字段角色卡
+│   └── relations/                 # 角色关系数据
+├── outline/
+│   ├── outline.json               # 卷章结构 + 分章条目 + 伏笔（单一数据源）
+│   └── chapters/                   # 分章条目明细
+├── timeline/timeline.json          # 故事内时序事件
+├── chapters/
+│   ├── draft/                      # 草稿正文
+│   ├── final/                      # 定稿正文
+│   └── summaries/                  # 定稿压缩摘要（供前 10 章摘要注入）
+├── state/
+│   ├── character_states.json       # 角色当前状态（写作中实时演进）
+│   ├── world_state.json            # 势力关系、活跃事件
+│   └── chapter_states.json         # 章节状态
+├── runtime/                        # 对话会话运行时
+└── workflows/                      # 工作流状态 + checkpoint + 审批产物
+```
+
+备份即复制目录，迁移即拷贝目录。无账号体系，无同步服务，无遥测。
+
+---
+
+## 快速开始
+
+前置要求：Python 3.11+、Node.js 18+、至少一个 LLM API Key。
+
+**Windows 一键启动**：双击 `start.bat`，自动安装依赖并启动后端（8000 端口）与前端（5173 端口）。
+
+**手动启动：**
+
+```bash
+# 终端 1 — 后端
+cd backend
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+
+# 终端 2 — 前端
 cd frontend
 npm install
 npm run dev
 ```
 
-## 访问地址
+访问：前端 http://localhost:5173，API 文档（Swagger）http://localhost:8000/docs。
 
-| 服务 | 地址 |
-|------|------|
-| 前端界面 | http://localhost:5173 |
-| API 文档 (Swagger) | http://localhost:8000/docs |
-| 健康检查 | http://localhost:8000/health |
+浏览器直接体验：`demo.html` 为免部署独立演示版。
 
 ## API Key 配置
 
-复制 `backend/.env.example` 为 `backend/config/.env`（或设置环境变量），填入你自己的 Key：
-- **DeepSeek**：`DEEPSEEK_API_KEY`（DeepSeek 开放平台申请）
-- **火山引擎豆包-pro**：`VOLCANO_API_KEY` 与接入点 `VOLCANO_PRO_ENDPOINT`（火山引擎方舟控制台获取）
+复制 `backend/config/.env.example` 为 `backend/config/.env`，填入：
 
-> v4.7 起密钥全部外置到环境变量，源码与文档不再包含任何真实 Key；旧密钥已失效，请勿继续使用。
+- `DEEPSEEK_API_KEY` — DeepSeek 开放平台（https://platform.deepseek.com/）
+- `VOLCANO_API_KEY` + `VOLCANO_PRO_ENDPOINT` — 火山引擎方舟（https://console.volcengine.com/ark）
+
+密钥全部外置为环境变量，源码不含任何真实 Key。
 
 ## 项目结构
 
 ```
 NovelWorkshop/
-├── backend/                      # FastAPI 后端 (~4400 行 Python)
-│   ├── main.py                  # 入口 + 启动配置
-│   ├── config/
-│   │   ├── .env                 # API Key 配置（已预填）
-│   │   ├── settings.py          # 配置加载
-│   │   └── model_config.json    # 模型分级路由
+├── backend/                  # FastAPI 后端
 │   ├── app/
-│   │   ├── agents/              # 8 个 Agent（base + 7 专用）
-│   │   │   ├── base_agent.py    # Agent 基类
-│   │   │   ├── worldbuilder.py  # 世界观架构师
-│   │   │   ├── char_designer.py # 角色设计师（14字段结构化输出）
-│   │   │   ├── plot_architect.py # 情节架构师
-│   │   │   ├── chapter_writer.py # 章节写手
-│   │   │   ├── consistency_checker.py # 一致性审查员
-│   │   │   ├── timeline_keeper.py # 时间线管理员
-│   │   │   ├── humanizer_agent.py # 文风润色师
-│   │   │   └── main_agent.py    # 总调度 Agent
-│   │   ├── api/                 # 34 个 REST API 端点
-│   │   │   ├── router.py        # 路由注册
-│   │   │   ├── books.py         # 书籍 CRUD + 状态查询
-│   │   │   ├── chapters.py      # 章节 CRUD + 导出（含 PUT 更新）
-│   │   │   ├── workflows.py     # 工作流启动/状态/列表
-│   │   │   ├── approvals.py     # 审批获取/提交（通过/驳回/修改）
-│   │   │   ├── characters.py    # 角色管理
-│   │   │   ├── world.py         # 世界观管理
-│   │   │   ├── outline.py       # 大纲管理
-│   │   │   ├── hooks.py         # 伏笔管理
-│   │   │   ├── timeline.py      # 时间线管理
-│   │   │   └── agents.py        # Agent 列表/模型配置
-│   │   ├── llm/                 # 双 Provider LLM 客户端
-│   │   │   ├── client.py        # LLM 统一接口
-│   │   │   ├── volcano.py       # 火山引擎适配
-│   │   │   ├── deepseek.py      # DeepSeek 适配
-│   │   │   └── router.py        # 模型分级路由（自动选最优）
-│   │   ├── models/              # Pydantic 数据模型
-│   │   ├── prompts/             # 8 个 Agent 的 System Prompt
-│   │   ├── tools/               # 工具脚本
-│   │   │   ├── finalize_chapter.py  # 章节定稿 + LLM 摘要生成
-│   │   │   ├── split_character_profile.py # 角色14字段拆分
-│   │   │   ├── compose_context.py   # 上下文组装
-│   │   │   ├── apply_state.py       # 状态应用
-│   │   │   ├── file_ops.py          # 文件操作
-│   │   │   └── style_analyzer.py    # 风格分析
-│   │   └── workflows/           # 4 条工作流引擎
-│   │       ├── engine.py        # 核心引擎（审批暂停/恢复/持久化）
-│   │       ├── novel_setup.py   # 新书设定流程
-│   │       ├── chapter_production.py # 章节生产流程
-│   │       ├── revision.py      # 修订润色流程
-│   │       └── character_import.py # 角色导入流程
-│   └── data/workspaces/         # 运行时书籍工作区（自动创建）
-├── frontend/                     # React 18 + TypeScript + Vite
-│   ├── src/
-│   │   ├── pages/               # 5 个核心页面
-│   │   │   ├── Dashboard.tsx    # 仪表盘（书籍列表）
-│   │   │   ├── Writing.tsx      # 写作工作台
-│   │   │   ├── Characters.tsx   # 角色管理
-│   │   │   ├── WorldBuilding.tsx # 世界观设定
-│   │   │   └── Outline.tsx      # 大纲编辑
-│   │   ├── components/          # 12 个组件
-│   │   │   ├── Layout.tsx       # 整体布局
-│   │   │   ├── Sidebar.tsx      # 侧边导航
-│   │   │   ├── BookCard.tsx     # 书籍卡片
-│   │   │   ├── WorkflowStatus.tsx  # 工作流状态面板
-│   │   │   ├── WorkflowProgress.tsx # 进度条
-│   │   │   ├── ApprovalPanel.tsx   # 审批面板（通过/驳回/修改）
-│   │   │   ├── ChapterNode.tsx     # 章节节点
-│   │   │   ├── CharacterCard.tsx   # 角色卡片
-│   │   │   ├── HookKanban.tsx      # 伏笔看板
-│   │   │   ├── RelationGraph.tsx   # 关系图谱
-│   │   │   └── TimelineView.tsx    # 时间线视图
-│   │   ├── api/client.ts        # API 客户端（34 个端点对接）
-│   │   ├── store/index.ts       # Zustand 全局状态
-│   │   ├── types/index.ts       # TypeScript 类型定义
-│   │   └── data/mock.ts         # Mock 数据（API 失败时降级）
-│   ├── index.html
-│   ├── package.json
-│   ├── vite.config.ts
-│   ├── tailwind.config.js
-│   ├── tsconfig.json
-│   └── postcss.config.js
-├── demo.html                     # 独立演示版（浏览器直接打开）
-├── start.bat                     # Windows 一键启动脚本
-└── README.md                     # 本文件
+│   │   ├── agents/           # 9 个 Agent（基类 + 8 专用）
+│   │   ├── api/              # 60 个 REST 端点，含 11 个工坊接口
+│   │   ├── llm/              # 双 Provider 客户端 + 分级路由
+│   │   ├── prompts/          # 各 Agent 的 System Prompt
+│   │   ├── services/         # 写作上下文引擎
+│   │   ├── tools/            # 上下文组装、状态应用、定稿导出
+│   │   └── workflows/        # 4 条工作流（新书/章节/修订/导入）
+│   └── config/               # .env 密钥 + model_config.json 模型路由
+├── frontend/                 # React 18 + TypeScript + Vite
+│   └── src/
+│       ├── pages/            # 仪表盘 / 写作工坊 / 角色 / 世界观 / 大纲
+│       └── components/       # 15 个组件：对话面板、伏笔看板、审核弹窗、关系图谱
+├── demo.html                 # 免部署独立演示版
+└── start.bat                 # Windows 一键启动
 ```
 
-## 完整 API 端点表（34 个）
+---
 
-### 书籍管理
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/books` | 书籍列表 |
-| POST | `/api/books` | 创建书籍 |
-| GET | `/api/books/{id}` | 书籍详情 |
-| GET | `/api/books/{id}/config` | 写作配置 |
-| PUT | `/api/books/{id}/config` | 更新配置 |
-| GET | `/api/books/{id}/state/characters` | 角色状态 |
-| GET | `/api/books/{id}/state/hooks` | 伏笔状态 |
-| GET | `/api/books/{id}/state/timeline` | 时间线状态 |
+## 架构决策与取舍
 
-### 章节管理
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/books/{id}/chapters` | 章节列表 |
-| GET | `/api/books/{id}/chapters/{cid}` | 章节详情 |
-| PUT | `/api/books/{id}/chapters/{cid}` | 更新章节（内容/标题/状态） |
-| GET | `/api/books/{id}/chapters/{cid}/export` | 导出章节 |
+本项目执行过若干次功能移除与降级决策，记录于此，供后续贡献者参考：
 
-### 工作流
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/books/{id}/workflow/novel-setup` | 启动新书流程 |
-| POST | `/api/books/{id}/workflow/chapter-production` | 启动章节生产 |
-| POST | `/api/books/{id}/workflow/revision` | 启动修订润色 |
-| GET | `/api/workflows/{wid}/status` | 工作流状态 |
-| GET | `/api/workflows/list` | 所有工作流列表 |
+- **圆桌会议系统**：多 Agent 实时辩论机制。设计为世界观、角色、情节 Agent 就特定设定进行辩论并投票。实际评估结论：单次辩论成本相当于多轮全链路调用，收敛速度慢，结果不可控，MVP 阶段性价比过低。已移除，保留为可选扩展方向。
 
-### 审批
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/workflows/{wid}/approval` | 获取待审批内容 |
-| POST | `/api/workflows/{wid}/approval` | 提交审批结果 |
+- **全量断点续传与多节点并行协调**：重机制方案。断点续传本身实现成本可控，真正的复杂度在于多节点并行时的状态一致性——为单机写作工具引入分布式协调属于过度设计。当前折中：工作流状态持久化 + 节点级 checkpoint，中断后从断点恢复；三步工坊各环节粒度短，中断损失可控。
 
-### 世界观 / 角色 / 大纲 / 伏笔 / 时间线
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET/PUT | `/api/books/{id}/world` | 世界观 CRUD |
-| GET/POST | `/api/books/{id}/characters` | 角色列表/创建 |
-| GET/PUT | `/api/books/{id}/characters/{cid}` | 角色详情/更新 |
-| GET/PUT | `/api/books/{id}/outline` | 大纲 CRUD |
-| GET/POST | `/api/books/{id}/hooks` | 伏笔列表/创建 |
-| PUT | `/api/books/{id}/hooks/{hid}` | 更新伏笔 |
-| GET/POST | `/api/books/{id}/timeline` | 时间线列表/创建 |
+- **12 节点全自动流水线**：技术上可运行，实际写作中为质量黑盒。处理方式为降级而非移除：默认路径让位给三步协作工坊，流水线保留为一键模式（产量优先场景），人工审批节点在两条路径中均保留。这是本项目成本最高的一次方向修正——流水线曾是核心卖点，降级即承认其产品定位错误。结论：技术可行性不等于产品可用性，演示效果不能代表实际写作价值。
 
-### 系统
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/agents` | Agent 列表 |
-| GET | `/api/agents/model-config` | 模型分级配置 |
+- **伏笔双存储**：早期 outline.json 与 hooks.json 各持一份伏笔数据，天然存在不一致风险。已统一至 outline.json 单一数据源。该问题具有典型性：同一数据的多处存储必然产生同步遗漏，单一数据源是唯一可靠解。
 
-## 模型分级路由
+迭代原则：每个功能必须端到端闭环（UI → API → 持久化 → 展示），不保留死代码，不交付半成品。
 
-| 任务类型 | Agent | 首选模型 | 降级链 |
-|---------|-------|---------|--------|
-| creative_high | worldbuilder, char_designer | 🔥 豆包-pro | DeepSeek → 豆包 |
-| reasoning | plot_architect, consistency_checker | 🔥 豆包-pro | DeepSeek → 豆包 |
-| creative_bulk | chapter_writer, humanizer | DeepSeek | 豆包 → DeepSeek |
-| light | timeline_keeper | DeepSeek | 豆包 → DeepSeek |
+---
 
-## 核心设计理念：对话驱动的分阶段协作
+## 常见问题
 
-**v3.0 核心变革：** 从"按钮触发工作流"转变为"多轮对话驱动创作"。
+**需要什么水平的写作基础？**
 
-用户不应通过点击按钮来启动工作流，而应通过与AI的多轮对话逐步推进创作：
+具备基本判断力即可：能判断对话是否自然、节奏是否拖沓。系统的设计前提是作者具备判断力而不要求写作执行力——AI 承担执行，作者承担判断与指挥。若全程仅点击确认而不做任何判断，产出质量等同于模型平均水平，此类用法不如直接使用通用对话产品。
 
-### 对话式创作流程
+**能否仅配置一个模型的 Key？**
 
-```
-世界观讨论 → 角色设计 → 大纲规划 → 章节摘要 → 正文撰写
-   ↓              ↓          ↓           ↓          ↓
- 多轮对话      多轮对话    多轮对话     逐章确认    逐章撰写
- 确认世界观   确认角色    确认大纲     确认摘要    确认正文
-   ↓              ↓          ↓           ↓          ↓
- 保存到         保存到      保存到       保存到      保存到
- world.json    chars.json  outline.json chapters.json 章节文件
-```
+可以。仅配置 DeepSeek 单一 Key 时全流程可完整运行，创意类任务自动降级至 DeepSeek。质量会下降一级，主要体现在世界观构建与人物对话两个环节，流程本身无缺失。建议先以单一 Key 验证流程，确认方向后再补充火山方舟 Key 提升质量。
 
-**每个阶段都遵循相同的交互模式：**
-1. 用户在对话面板中与AI讨论
-2. AI根据讨论结果提出建议/方案
-3. 用户反馈修改意见，AI迭代
-4. 用户满意后点击"确认"进入下一阶段
-5. 已确认的数据保存为结构化文件，并注入后续阶段的AI上下文
+**数据存储位置？是否上传？**
 
-### 风格统一机制
+全部本地落盘，按书籍目录组织，结构化 JSON + Markdown。除调用 LLM API 时发送的上下文外，无任何数据离开本机。无云端账号，无同步服务，无遥测。备份即复制目录，迁移即拷贝目录。
 
-所有对话和写作共享一套结构化 style_guide，确保从世界观到正文的全流程风格一致：
+**与直接使用通用对话产品写作的区别？**
 
-```json
-{
-  "style_guide": {
-    "narrative_pov": "第三人称限知视角",
-    "tone": "轻松幽默但关键时刻严肃",
-    "dialogue_style": "简洁有力，角色语言要有辨识度",
-    "chapter_ending_hook": true,
-    "chapter_ending_hook_instruction": "每章结尾必须设置悬念钩子或情感锚点",
-    "pacing": {
-      "overall_curve": "慢热开局，逐步加速，每10章一个小高潮，每30章一个大高潮",
-      "tension_density": "每2000字至少一个冲突点或爽点",
-      "climax_frequency": "每5章一个转折，每15章一个大高潮"
-    },
-    "webnovel_conventions": {
-      "face_slapping_rhythm": "压抑3章，爆发1章",
-      "power_progression": "每10章一个小境界突破",
-      "foreshadowing_rules": "伏笔最多跨5章必须回收，重要伏笔跨卷回收"
-    },
-    "custom_rules": "用户自由填写的额外规则"
-  }
-}
-```
+直接对话写长篇需要人工维护上下文：手动粘贴设定、前文与伏笔，遗漏即导致生成质量崩溃。NovelWorkshop 将该上下文管理自动化，并使其可见、可编辑；另提供一致性审查、伏笔生命周期管理、成本分级路由——这些是通用对话产品不针对长篇写作提供的系统能力。概括而言：通用对话产品是强生成器，不是写作系统。
 
-**style_guide 注入机制：**
-- 每个阶段的 system prompt 都包含 style_guide 内容
-- 对话上下文中携带已确认的前序阶段成果（大纲、角色、世界观）
-- 确保后续写作时AI始终遵循统一的风格规范
+**支持哪些题材？**
 
-## 新增：通用对话 API（v3.0）
+系统围绕历史、科幻、脑洞、悬疑惊悚四类长篇题材设计。其他题材同样可以写作：风格引擎的规则均可修改，但需要作者在设定工坊中从零构建设定。
 
-### 对话端点
+**单章 0.46 元成本的计算口径？**
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/books/{id}/chat` | 发送对话消息（通用，通过context区分场景） |
-| GET | `/api/books/{id}/chat/history` | 获取对话历史 |
-| POST | `/api/books/{id}/chat/confirm-stage` | 确认当前阶段，推进到下一阶段 |
+按单章约 2000 字成稿、全链路执行一遍（大纲 + 初稿 + 对话优化 + 审核 + 润色）实测。实际成本随章节长度、审核次数、重写次数浮动。世界观构建为一次性成本，不计入单章。分项数据见"多模型分级路由"一节。
 
-### 对话 API 请求/响应格式
+**能否商用？**
 
-**POST /api/books/{id}/chat**
-```json
-// 请求
-{
-  "context": "worldbuilding | character | outline | writing",
-  "message": "用户消息文本",
-  "context_id": "可选，角色ID或章节ID"
-}
+License 为仅供学习交流。自行写作并发布至平台不受限制；将系统本身商业化销售或构建 SaaS 服务需先联系作者。
 
-// 响应
-{
-  "reply": "AI回复内容（Markdown格式）",
-  "stage": "当前阶段",
-  "stage_data": {},
-  "suggestions": ["建议操作1", "建议操作2"]
-}
-```
+---
 
-### 对话状态存储
+## License
 
-每个场景的对话历史独立存储：
-```
-{book_dir}/runtime/chat_{context}.json
-```
-
-结构：
-```json
-{
-  "context": "worldbuilding|character|outline|writing",
-  "context_id": "可选的角色ID或章节ID",
-  "stage": "当前阶段名称",
-  "messages": [
-    {"role": "user", "content": "...", "timestamp": "...", "stage": "..."},
-    {"role": "assistant", "content": "...", "timestamp": "...", "stage": "..."}
-  ],
-  "stage_data": {}
-}
-```
-
-### 各场景 System Prompt 要点
-
-| context | AI 角色 | 核心职责 |
-|---------|---------|---------|
-| worldbuilding | 资深世界观架构师 | 引导用户构建地理、势力、力量体系、历史、社会规则 |
-| character | 专业角色设计师 | 引导用户设计角色的14个字段，确保角色立体丰满 |
-| outline | 资深剧情策划 | 基于世界观和角色，引导用户规划大纲和剧情走向 |
-| writing | 专业网文写手 | 基于已确认的设定撰写正文，遵循 style_guide 所有规范 |
-
-### 阶段确认与推进
-
-当用户点击"确认"按钮时：
-1. 前端调用 `confirm-stage` API
-2. 后端将当前 stage_data 中的成果保存到对应文件（world.json/outline.json等）
-3. 切换到下一阶段，新阶段的 system prompt 自动注入已确认的前序成果
-4. AI发送一条欢迎消息，引导用户进入新阶段的讨论
-
-### 前端改造：通用 ChatPanel 组件
-
-创建可复用的 `ChatPanel.tsx` 组件：
-```typescript
-interface ChatPanelProps {
-  bookId: string
-  context: 'worldbuilding' | 'character' | 'outline' | 'writing'
-  contextId?: string  // 角色/章节的ID
-  onStageDataUpdate?: (data: any) => void
-}
-```
-
-包含：
-- 消息列表（用户靠右，AI靠左，Markdown渲染）
-- 输入框 + 发送按钮（Enter发送，Shift+Enter换行）
-- 快捷建议按钮（suggestions）
-- 加载状态动画
-- 自动滚动到最新消息
-
-### 各页面改造方案
-
-每个页面统一采用三栏布局：
-- **左侧**：导航（章节列表/角色列表/世界观分类/大纲树）
-- **中间**：ChatPanel 对话面板
-- **右侧**：当前阶段数据展示 + 确认按钮
-
-| 页面 | 左侧 | 中间 | 右侧 |
-|------|------|------|------|
-| WorldBuilding.tsx | 世界观分类导航 | ChatPanel context="worldbuilding" | 当前设定 + 确认按钮 |
-| Characters.tsx | 角色列表 | ChatPanel context="character" | 角色14字段 + 确认按钮 |
-| Outline.tsx | 卷/章节树 | ChatPanel context="outline" | 大纲结构 + 确认按钮 |
-| Writing.tsx | 章节列表 | ChatPanel context="writing" | 风格规范 + 章节数据 |
-
-## v3.2 更新内容（本轮迭代）
-- ✅ 修复空 JSON 文件导致后端 500 崩溃的问题：`read_json` 增加空文件/损坏文件自动修复（备份+重置）
-- ✅ `ensure_workspace_structure` 增强：检测并重新初始化已存在但为空的 JSON 文件
-- ✅ `apply_state.py` 全面改用 `read_json`，消除所有直接 `json.loads` 的崩溃隐患
-- ✅ start.bat 增强：端口清理 + 后端健康检查 + 启动失败提示
-
-## v3.1 更新内容
-- ✅ 数据管线公共模块 `app/utils/data_pipeline.py`：抽取 `generate_chapters_from_outline` 和 `save_chapter_summary`，消除 chat.py/outline.py 重复代码
-- ✅ 大纲→分章自动联动：对话提取大纲或 PUT 更新大纲后，自动生成 chapters.json 章节条目
-- ✅ 写作前章摘要注入：writing context 的 system prompt 自动注入前一章摘要，实现章节衔接
-- ✅ 写作正文持久化：对话产出的正文自动保存到 `chapters/final/chapter-XXX.md`，同步更新 chapters.json 状态/字数
-- ✅ 全页面数据联动：ChatPanel 新增 `onDataUpdate` 回调，世界观/角色/大纲/写作页面的对话结果自动回写结构化数据
-- ✅ Dashboard 去 mock：伏笔和章节数据改为从 store 读取真实 API 数据
-- ✅ 世界观布局优化：势力关系图改为可折叠（默认收起），tab 区域改为弹性布局
-- ✅ Writing 页面 LeftPanel 改造：显示真实章节进度、写作素材就绪指示器、动态对话提示
-
-## v3.0 更新内容
-- ✅ start.bat 修复：`cd /d "%~dp0"` 解决双击闪退 + 纯英文 + 独立窗口
-- ✅ settings.py 修复：添加 `volcano_pro_endpoint` + `extra = "ignore"` 防止 pydantic 拒绝未知字段
-- ✅ 后端：通用对话API（chat.py），支持4个场景的对话式交互
-- ✅ 前端：ChatPanel 通用组件 + 4个页面全部改为对话驱动
-- ✅ style_guide 结构化为完整写作规范体系（文风/钩子/节奏/网文惯例）
-- ✅ 风格统一机制：style_guide 注入每个阶段的 system prompt
-
-## v1.2 更新内容（上轮迭代）
-- ✅ startWorkflow 返回值对齐
-- ✅ 新增 PUT chapters 端点
-- ✅ 章节摘要 LLM 自动生成
-- ✅ chapters GET 字段补全
-- ✅ 前端 WorkflowStatus / ApprovalPanel / API client / store 对齐
-- ✅ 审批流程真实化 + 工作流状态持久化
-- ✅ 角色 14 字段结构化输出
-
-## 版本迭代约定
-- 每次修改都更新本 PRD，迭代版本号（v3.0 → v3.1 → ...）
-- 下次会话先读 PRD 恢复上下文，基于最新版本做修改
-- 🔄 = 进行中 | ✅ = 已完成 | ❌ = 已取消 | 📋 = 待做
-
-## 代码质量原则：闭环与整体性
-- **每个功能必须端到端闭环**：前端按钮 → API调用 → 后端处理 → 数据持久化 → 前端展示，缺一不可
-- **不留死代码**：如果某个功能被新方案取代（如按钮式工作流被对话式取代），旧代码要删除或标注废弃
-- **不做半成品**：每个文件、每个函数都要有明确的调用方和被调用方，不能有孤立模块
-- **验收标准**：运行项目时，每个页面、每个按钮都要能用，不能有"点击无响应"的情况
-- **架构清晰**：前端组件之间、后端模块之间的调用关系要明确，不能出现循环依赖或冗余层
+仅供学习交流。二次开发或引用请注明出处。
